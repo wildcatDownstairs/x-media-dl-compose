@@ -2,6 +2,14 @@
 
 [中文](#中文) · [English](#english)
 
+<p align="center">
+  <img src="docs/assets/app-icon.svg" width="120" alt="X Media DL app icon" />
+</p>
+
+<p align="center">
+  <strong>无广告 X/Twitter 媒体下载实验 App · Ad-free X/Twitter media downloader experiment</strong>
+</p>
+
 Public repository: https://github.com/wildcatDownstairs/x-media-dl-compose
 Web demo: https://wildcatdownstairs.github.io/x-media-dl-compose/
 
@@ -21,6 +29,17 @@ X Media DL Compose 是一个个人使用和学习用途的 X/Twitter 媒体下�
 - 独立图片单独显示下载按钮。
 - Android App 会把视频和图片保存到系统媒体库，方便在相册里查看。
 - 支持 Android 返回手势从结果页回到输入页。
+
+### App 截图
+
+以下截图来自已连接的 Android 真机，示例链接：
+
+- 图片帖：https://x.com/CuteCatsMagic/status/2057125030610301155?s=20
+- 视频帖：https://x.com/CuteCatsMagic/status/2057319463423181065?s=20
+
+| 一级页面 | 图片下载页 | 视频下载页 |
+| --- | --- | --- |
+| ![X Media DL 首页](docs/screenshots/home.png) | ![图片帖下载页](docs/screenshots/result-image.png) | ![视频帖下载页](docs/screenshots/result-video.png) |
 
 ### Android 构建
 
@@ -88,6 +107,17 @@ X Media DL Compose is a personal-use and learning-oriented experiment for downlo
 - Show standalone photo downloads separately.
 - Save Android downloads into the system media library so they appear in the gallery.
 - Handle Android back gestures from the result page back to the input page.
+
+### App Screenshots
+
+The screenshots below were captured from a connected Android device using these sample links:
+
+- Photo post: https://x.com/CuteCatsMagic/status/2057125030610301155?s=20
+- Video post: https://x.com/CuteCatsMagic/status/2057319463423181065?s=20
+
+| Home | Photo result | Video result |
+| --- | --- | --- |
+| ![X Media DL home screen](docs/screenshots/home.png) | ![Photo post result screen](docs/screenshots/result-image.png) | ![Video post result screen](docs/screenshots/result-video.png) |
 
 ### Android Build
 

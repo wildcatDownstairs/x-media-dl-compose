@@ -21,6 +21,8 @@ com/
 *.jpg
 *.jpeg
 *.webp
+!docs/screenshots/
+!docs/screenshots/*.png
 
 # Node prototype dependencies
 node_modules/
