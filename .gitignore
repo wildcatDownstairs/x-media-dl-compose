@@ -1,0 +1,26 @@
+# Gradle / Android build output
+.gradle/
+.kotlin/
+build/
+app/build/
+
+# Local machine configuration
+local.properties
+.idea/
+*.iml
+
+# Generated or temporary Android tooling files
+com/
+
+# Logs and local runtime files
+*.log
+*.tmp
+
+# Local screenshots / captures
+*.png
+*.jpg
+*.jpeg
+*.webp
+
+# Node prototype dependencies
+node_modules/
