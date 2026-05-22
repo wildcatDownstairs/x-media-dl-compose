@@ -1,0 +1,607 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>X Media DL - X/Twitter 视频图片下载工具</title>
+  <meta name="description" content="X Media DL is a clean X/Twitter media downloader web prototype and Android Compose app for resolving videos, covers, and photos from public post links." />
+  <meta name="keywords" content="X media downloader, Twitter video downloader, X video download, Twitter image downloader, Jetpack Compose Android, SaveTwitter, X 媒体下载, 推特视频下载, 推特图片下载" />
+  <meta name="robots" content="index, follow" />
+  <meta name="theme-color" content="#0a0a0a" />
+  <link rel="canonical" href="https://wildcatdownstairs.github.io/x-media-dl-compose/" />
+  <link rel="manifest" href="./site.webmanifest" />
+
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="X Media DL - X/Twitter Media Downloader" />
+  <meta property="og:description" content="Paste a public X/Twitter post link and resolve videos, covers, and photos in a clean ad-free interface." />
+  <meta property="og:url" content="https://wildcatdownstairs.github.io/x-media-dl-compose/" />
+  <meta property="og:site_name" content="X Media DL" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="X Media DL" />
+  <meta name="twitter:description" content="A clean X/Twitter media downloader web prototype and Android Compose app." />
+
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@400;500;700&display=swap" rel="stylesheet" />
+
+  <script type="application/ld+json">
+  {
+    "@context": "https://schema.org",
+    "@type": "SoftwareApplication",
+    "name": "X Media DL",
+    "applicationCategory": "MultimediaApplication",
+    "operatingSystem": "Android, Web",
+    "description": "A personal X/Twitter media downloader web prototype and Android Compose app.",
+    "url": "https://wildcatdownstairs.github.io/x-media-dl-compose/",
+    "codeRepository": "https://github.com/wildcatDownstairs/x-media-dl-compose",
+    "isAccessibleForFree": true
+  }
+  </script>
+
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0a0a0a;
+      --surface: #161616;
+      --border: rgba(255,255,255,0.16);
+      --border-active: rgba(255,255,255,0.36);
+      --text-primary: #f0f0f0;
+      --text-secondary: #999;
+      --text-muted: #555;
+      --accent: #e7ff52;
+      --accent-text: #0a0a0a;
+      --danger: #ff4d4d;
+      --success: #52d68a;
+      --mono: 'Space Mono', monospace;
+      --sans: 'DM Sans', sans-serif;
+    }
+    html { background: var(--bg); color: var(--text-primary); font-family: var(--sans); }
+    body {
+      min-height: 100vh;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: env(safe-area-inset-top) 16px max(12px, env(safe-area-inset-bottom));
+    }
+    .topbar, main, footer { width: 100%; max-width: 680px; }
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding-top: 20px;
+      margin-bottom: 36px;
+    }
+    .logo { display: flex; align-items: center; gap: 10px; text-decoration: none; color: inherit; }
+    .logo-mark {
+      width: 34px;
+      height: 34px;
+      background: var(--accent);
+      color: var(--accent-text);
+      border-radius: 8px;
+      display: grid;
+      place-items: center;
+      font-family: var(--mono);
+      font-weight: 700;
+      letter-spacing: -1px;
+    }
+    .logo-name {
+      font-family: var(--mono);
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text-secondary);
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .badge {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: #cfcfcf;
+      background: rgba(255,255,255,0.045);
+      border: 1px solid rgba(255,255,255,0.24);
+      border-radius: 20px;
+      padding: 5px 12px;
+      white-space: nowrap;
+    }
+    .hidden { display: none !important; }
+    .hero-label, .result-eyebrow {
+      font-family: var(--mono);
+      font-size: 11px;
+      color: var(--accent);
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      margin-bottom: 14px;
+    }
+    h1 {
+      font-size: clamp(34px, 8vw, 56px);
+      line-height: 1.06;
+      letter-spacing: -0.02em;
+      margin-bottom: 12px;
+    }
+    .hero-sub {
+      font-size: 15px;
+      color: var(--text-secondary);
+      line-height: 1.6;
+      margin-bottom: 34px;
+    }
+    .input-card, .result-card, .status-panel, .note {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 14px;
+    }
+    .input-card { padding: 20px; display: flex; flex-direction: column; gap: 12px; }
+    .input-label {
+      font-family: var(--mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+    }
+    .input-row { display: flex; gap: 10px; align-items: stretch; }
+    .url-input {
+      flex: 1;
+      min-width: 0;
+      height: 52px;
+      background: #050505;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0 16px;
+      color: var(--text-primary);
+      font-family: var(--mono);
+      font-size: 13px;
+      outline: none;
+    }
+    .url-input:focus { border-color: var(--border-active); }
+    .paste-btn {
+      width: 52px;
+      height: 52px;
+      background: #050505;
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      color: var(--text-secondary);
+      display: grid;
+      place-items: center;
+      cursor: pointer;
+      flex-shrink: 0;
+    }
+    .paste-btn svg { width: 18px; height: 18px; }
+    .primary-btn, .download-link, .back-btn {
+      height: 52px;
+      border-radius: 10px;
+      border: 0;
+      font-family: var(--mono);
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      cursor: pointer;
+    }
+    .primary-btn, .download-link {
+      background: var(--accent);
+      color: var(--accent-text);
+    }
+    .back-btn {
+      width: 100%;
+      margin-top: 16px;
+      background: rgba(255,255,255,0.045);
+      color: #d6d6d6;
+      border: 1px solid rgba(255,255,255,0.24);
+    }
+    .message {
+      min-height: 22px;
+      margin-top: 12px;
+      font-family: var(--mono);
+      font-size: 13px;
+      color: var(--text-secondary);
+    }
+    .message.err { color: var(--danger); }
+    .note {
+      margin-top: 20px;
+      padding: 14px;
+      color: var(--text-secondary);
+      font-size: 13px;
+      line-height: 1.55;
+    }
+    .note strong { color: var(--text-primary); }
+    #resultView { display: none; flex-direction: column; gap: 16px; }
+    #resultView.active { display: flex; }
+    #resultTitle {
+      font-size: 24px;
+      line-height: 1.2;
+      margin-bottom: 6px;
+    }
+    #resultMeta {
+      font-family: var(--mono);
+      color: #b7b7b7;
+      font-size: 12px;
+    }
+    .status-panel {
+      padding: 18px;
+      display: flex;
+      gap: 14px;
+      align-items: center;
+      color: var(--text-secondary);
+    }
+    .spinner {
+      width: 26px;
+      height: 26px;
+      border-radius: 999px;
+      border: 2px solid rgba(255,255,255,0.15);
+      border-top-color: var(--accent);
+      animation: spin 0.9s linear infinite;
+      flex: 0 0 auto;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .result-card {
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .preview {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: 10px;
+      background: #050505;
+    }
+    .download-row {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+    }
+    .download-link { min-width: 0; padding: 0 10px; text-align: center; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .media-info {
+      color: var(--text-secondary);
+      font-family: var(--mono);
+      font-size: 12px;
+      margin-top: -4px;
+    }
+    .post-title {
+      font-size: 18px;
+      font-weight: 700;
+      line-height: 1.3;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .duration {
+      color: var(--text-secondary);
+      font-family: var(--mono);
+      font-size: 13px;
+    }
+    .footer {
+      margin-top: auto;
+      padding: 32px 0 12px;
+      text-align: center;
+      color: var(--text-muted);
+      font-family: var(--mono);
+      font-size: 11px;
+    }
+  </style>
+</head>
+<body>
+  <header class="topbar">
+    <a class="logo" href="./" aria-label="X Media DL home">
+      <span class="logo-mark">X↓</span>
+      <span class="logo-name">Media DL</span>
+    </a>
+    <span class="badge">Web · iPhone · Android</span>
+  </header>
+
+  <main>
+    <section id="homeView">
+      <p class="hero-label">// X Media Downloader</p>
+      <h1>Download<br />without the noise.</h1>
+      <p class="hero-sub">粘贴公开 X / Twitter 帖子链接，解析视频、封面和图片。Paste a public X/Twitter post URL to resolve videos, covers, and photos.</p>
+
+      <div class="input-card">
+        <span class="input-label">// Post URL</span>
+        <div class="input-row">
+          <input id="tweetUrl" class="url-input" type="url" placeholder="https://x.com/..." autocomplete="off" aria-label="X/Twitter post URL" />
+          <button id="pasteButton" class="paste-btn" type="button" title="Paste" aria-label="Paste from clipboard">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="8" y="2" width="8" height="4" rx="1"></rect>
+              <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
+              <path d="M8 10h8"></path><path d="M8 14h8"></path>
+            </svg>
+          </button>
+        </div>
+        <button id="resolveButton" class="primary-btn" type="button">DOWNLOAD</button>
+      </div>
+      <p id="homeMessage" class="message" role="status"></p>
+      <div class="note">
+        <strong>GitHub Pages 静态版说明：</strong>这个网页会直接从浏览器请求 SaveTwitter 解析接口。若上游接口阻止跨域请求，请使用 Android App，或后续部署一个轻量 API 代理。
+      </div>
+    </section>
+
+    <section id="resultView">
+      <div>
+        <p class="result-eyebrow">// 解析结果</p>
+        <h2 id="resultTitle">选择要下载的媒体</h2>
+        <p id="resultMeta" class="hidden"></p>
+      </div>
+      <div id="statusPanel" class="status-panel">
+        <div class="spinner" aria-hidden="true"></div>
+        <div>
+          <strong>正在解析…</strong>
+          <p>请求 SaveTwitter → 读取下载项</p>
+        </div>
+      </div>
+      <div id="resultContent"></div>
+      <button id="bottomBackButton" class="back-btn" type="button">↩ Download more videos</button>
+    </section>
+  </main>
+
+  <footer class="footer">Personal use only · powered by savetwitter api · <a href="https://github.com/wildcatDownstairs/x-media-dl-compose" style="color:inherit">GitHub</a></footer>
+
+  <script>
+    const homeView = document.querySelector("#homeView");
+    const resultView = document.querySelector("#resultView");
+    const tweetUrlInput = document.querySelector("#tweetUrl");
+    const pasteButton = document.querySelector("#pasteButton");
+    const resolveButton = document.querySelector("#resolveButton");
+    const bottomBackButton = document.querySelector("#bottomBackButton");
+    const homeMessage = document.querySelector("#homeMessage");
+    const statusPanel = document.querySelector("#statusPanel");
+    const resultContent = document.querySelector("#resultContent");
+    const resultMeta = document.querySelector("#resultMeta");
+
+    function setMessage(text, isError = false) {
+      homeMessage.textContent = text;
+      homeMessage.classList.toggle("err", isError);
+    }
+
+    function showHome() {
+      resultView.classList.remove("active");
+      resultView.classList.add("hidden");
+      homeView.classList.remove("hidden");
+      tweetUrlInput.value = "";
+      resultContent.innerHTML = "";
+      resultMeta.textContent = "";
+      resultMeta.classList.add("hidden");
+      setMessage("");
+    }
+
+    function showResultLoading() {
+      homeView.classList.add("hidden");
+      resultView.classList.remove("hidden");
+      resultView.classList.add("active");
+      statusPanel.classList.remove("hidden");
+      resultContent.innerHTML = "";
+      resultMeta.classList.add("hidden");
+    }
+
+    function normalizeSharedText(text) {
+      const match = text.match(/https?:\/\/[^\s]+/i);
+      return match ? match[0].replace(/[),.，。]+$/, "") : text.trim();
+    }
+
+    function looksLikeXUrl(value) {
+      try {
+        const url = new URL(value);
+        return ["x.com", "twitter.com", "www.x.com", "www.twitter.com", "mobile.twitter.com"].includes(url.hostname);
+      } catch {
+        return false;
+      }
+    }
+
+    function stripTags(value) {
+      const template = document.createElement("template");
+      template.innerHTML = value;
+      return template.content.textContent.trim();
+    }
+
+    function parseResolvedHtml(html) {
+      const template = document.createElement("template");
+      template.innerHTML = html;
+      template.content.querySelectorAll("script, iframe, style, link, ins").forEach((node) => node.remove());
+
+      const title = stripTags(template.content.querySelector("h3")?.innerHTML || "Untitled post");
+      const duration = [...template.content.querySelectorAll("p")]
+        .map((node) => node.textContent.trim())
+        .find((text) => /^[0-9:]+$/.test(text)) || "";
+      const thumbnail = template.content.querySelector("img[src]")?.getAttribute("src") || "";
+
+      const entries = [];
+      let videoRun = [];
+      let pendingVideo = null;
+
+      function flushBestVideoToPending() {
+        if (videoRun.length) {
+          pendingVideo = videoRun.sort((a, b) => b.quality - a.quality)[0];
+          videoRun = [];
+        }
+      }
+      function commitVideoWithoutCover() {
+        if (pendingVideo) {
+          entries.push({ type: "video", video: pendingVideo, cover: null });
+          pendingVideo = null;
+        }
+      }
+
+      [...template.content.querySelectorAll("a[href]")].forEach((link) => {
+        const href = link.getAttribute("href");
+        const text = link.textContent.trim();
+        if (/download\s*mp4/i.test(text)) {
+          const quality = Number(text.match(/\((\d+)p\)/i)?.[1] || 0);
+          const previousQuality = videoRun.at(-1)?.quality ?? Number.MAX_SAFE_INTEGER;
+          if (videoRun.length && quality >= previousQuality) {
+            flushBestVideoToPending();
+            commitVideoWithoutCover();
+          }
+          commitVideoWithoutCover();
+          videoRun.push({ type: "video", url: href, quality });
+          return;
+        }
+        if (/download\s*photo/i.test(text)) {
+          flushBestVideoToPending();
+          const photo = { type: "photo", url: href };
+          if (pendingVideo) {
+            entries.push({ type: "video", video: pendingVideo, cover: photo });
+            pendingVideo = null;
+          } else {
+            entries.push({ type: "photo", photo });
+          }
+          return;
+        }
+        flushBestVideoToPending();
+      });
+      flushBestVideoToPending();
+      commitVideoWithoutCover();
+
+      const seen = new Set();
+      const deduped = entries.filter((entry) => {
+        const key = entry.type === "video"
+          ? `v:${entry.video.url}:${entry.cover?.url || ""}`
+          : `p:${entry.photo.url}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      });
+
+      return { title, duration, thumbnail, entries: deduped };
+    }
+
+    function renderResult(parsed, elapsedMs) {
+      const videoCount = parsed.entries.filter((entry) => entry.type === "video").length;
+      const photoCount = parsed.entries.filter((entry) => entry.type === "photo").length;
+      resultMeta.textContent = `视频 ${videoCount} · 图片 ${photoCount} · ${elapsedMs} ms`;
+      resultMeta.classList.remove("hidden");
+
+      const card = document.createElement("article");
+      card.className = "result-card";
+      if (parsed.thumbnail) {
+        const img = document.createElement("img");
+        img.className = "preview";
+        img.src = parsed.thumbnail;
+        img.alt = parsed.title;
+        card.append(img);
+      }
+
+      let videoIndex = 1;
+      let photoIndex = 1;
+      parsed.entries.forEach((entry) => {
+        if (entry.type === "video") {
+          const index = videoIndex++;
+          const row = document.createElement("div");
+          row.className = "download-row";
+          row.append(createDownloadLink(entry.video.url, videoCount === 1 ? "Download MP4" : `Download MP4 ${index}`));
+          if (entry.cover) {
+            row.append(createDownloadLink(entry.cover.url, videoCount === 1 ? "Download Cover" : `Cover ${index}`));
+          }
+          card.append(row);
+          const info = document.createElement("p");
+          info.className = "media-info";
+          info.textContent = entry.video.quality ? `MP4 · ${entry.video.quality}p` : "MP4";
+          card.append(info);
+        } else {
+          const index = photoIndex++;
+          card.append(createDownloadLink(entry.photo.url, photoCount === 1 ? "Download Photo" : `Download Photo ${index}`));
+        }
+      });
+
+      const title = document.createElement("h3");
+      title.className = "post-title";
+      title.textContent = parsed.title || "Untitled post";
+      card.append(title);
+
+      if (parsed.duration) {
+        const duration = document.createElement("p");
+        duration.className = "duration";
+        duration.textContent = parsed.duration;
+        card.append(duration);
+      }
+
+      resultContent.replaceChildren(card);
+    }
+
+    function createDownloadLink(url, label) {
+      const link = document.createElement("a");
+      link.className = "download-link";
+      link.href = url;
+      link.target = "_blank";
+      link.rel = "noopener noreferrer";
+      link.textContent = label;
+      return link;
+    }
+
+    async function resolveViaSaveTwitter(url) {
+      const startedAt = Date.now();
+      const form = new URLSearchParams({ q: url, lang: "en", cftoken: "" });
+      const response = await fetch("https://savetwitter.net/api/ajaxSearch", {
+        method: "POST",
+        headers: {
+          "content-type": "application/x-www-form-urlencoded; charset=UTF-8",
+          "x-requested-with": "XMLHttpRequest"
+        },
+        body: form
+      });
+      const payload = await response.json();
+      if (payload.status !== "ok" || !payload.data) {
+        throw new Error(payload.msg || "没有解析到可下载媒体。");
+      }
+      return { html: payload.data, elapsedMs: Date.now() - startedAt };
+    }
+
+    async function resolveUrl(url) {
+      showResultLoading();
+      try {
+        const result = await resolveViaSaveTwitter(url);
+        const parsed = parseResolvedHtml(result.html);
+        statusPanel.classList.add("hidden");
+        if (!parsed.entries.length) {
+          resultContent.innerHTML = '<div class="note"><strong>没有找到下载项。</strong></div>';
+          return;
+        }
+        renderResult(parsed, result.elapsedMs);
+      } catch (error) {
+        statusPanel.classList.add("hidden");
+        resultContent.innerHTML = `<div class="note"><strong>网页版解析失败：</strong>${error instanceof Error ? error.message : "未知错误"}<br><br>如果这里提示 Failed to fetch，多半是 GitHub Pages 静态网页被上游 CORS 限制。Android App 仍可正常使用，网页版需要再接一个轻量 API 代理。</div>`;
+      }
+    }
+
+    async function pasteAndResolve() {
+      setMessage("");
+      if (!navigator.clipboard?.readText) {
+        setMessage("当前浏览器不支持直接读取剪贴板，请手动粘贴。", true);
+        tweetUrlInput.focus();
+        return;
+      }
+      try {
+        const url = normalizeSharedText(await navigator.clipboard.readText());
+        tweetUrlInput.value = url;
+        if (!looksLikeXUrl(url)) {
+          setMessage("剪贴板里没有 x.com 或 twitter.com 分享链接。", true);
+          return;
+        }
+        await resolveUrl(url);
+      } catch {
+        setMessage("浏览器拒绝读取剪贴板，请点输入框手动粘贴。", true);
+      }
+    }
+
+    async function resolveFromInput() {
+      const url = normalizeSharedText(tweetUrlInput.value);
+      tweetUrlInput.value = url;
+      if (!looksLikeXUrl(url)) {
+        setMessage("请粘贴 x.com 或 twitter.com 的公开帖子分享链接。", true);
+        return;
+      }
+      await resolveUrl(url);
+    }
+
+    pasteButton.addEventListener("click", pasteAndResolve);
+    resolveButton.addEventListener("click", resolveFromInput);
+    bottomBackButton.addEventListener("click", showHome);
+    tweetUrlInput.addEventListener("keydown", (event) => {
+      if (event.key === "Enter") {
+        event.preventDefault();
+        resolveFromInput();
+      }
+    });
+  </script>
+</body>
+</html>

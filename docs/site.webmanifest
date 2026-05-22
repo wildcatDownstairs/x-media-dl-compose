@@ -1,0 +1,10 @@
+{
+  "name": "X Media DL",
+  "short_name": "X Media DL",
+  "description": "A personal X/Twitter media downloader web prototype and Android Compose app.",
+  "start_url": "/x-media-dl-compose/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#e7ff52",
+  "icons": []
+}
