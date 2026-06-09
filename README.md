@@ -28,7 +28,7 @@ X Media DL Compose 是一个个人使用和学习用途的 X/Twitter 媒体下�
 - 视频封面下载与视频下载并排显示。
 - 独立图片单独显示下载按钮。
 - Android App 会把视频和图片保存到系统媒体库，方便在相册里查看。
-- 提供 Android Adaptive Icon：独立 foreground、background、monochrome 图层，避免厂商桌面二次裁切时切边。
+- 提供 Android Adaptive Icon：独立 foreground、background、monochrome 图层，并保留原始 film mark 比例。
 - 使用本地 SQLite 记录下载历史，同一媒体再次下载前会提示确认，不会删除相册里已有文件。
 - 下载历史按帖子聚合展示，标题最多两行，点击条目会打开本机 X / Twitter 应用。
 - 支持 Android 返回手势从结果页回到输入页。
@@ -51,9 +51,9 @@ X Media DL Compose 是一个个人使用和学习用途的 X/Twitter 媒体下�
 
 ### Adaptive Icon
 
-Android App 使用 Adaptive Icon，而不是只提供一张成品图：
+Android App 使用 Adaptive Icon，而不是只提供一张成品图。当前版本保留原始 film mark 比例，避免三星默认主题把裸前景图拉伸变形：
 
-- `app/src/main/res/drawable/ic_launcher_foreground.xml` - 前景图层，留有安全边距，不包含预裁切圆角、圆形底、外框或阴影。
+- `app/src/main/res/drawable/ic_launcher_foreground.xml` - 前景图层，使用原始黑色 film mark 和绿色 X 比例。
 - `app/src/main/res/values/colors.xml` - 背景色图层。
 - `app/src/main/res/drawable/ic_launcher_monochrome.xml` - 单色图层，供支持主题图标的系统使用。
 - `app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` - adaptive icon 入口。
@@ -125,7 +125,7 @@ X Media DL Compose is a personal-use and learning-oriented experiment for downlo
 - Show video cover downloads next to their video button.
 - Show standalone photo downloads separately.
 - Save Android downloads into the system media library so they appear in the gallery.
-- Provide Android Adaptive Icon layers: foreground, background, and monochrome.
+- Provide Android Adaptive Icon layers: foreground, background, and monochrome, while preserving the original film mark proportions.
 - Store download history locally with SQLite and ask for confirmation before re-downloading an already recorded media item.
 - Group history by post, show each title with two-line ellipsis, and open the local X / Twitter app when a history item is tapped.
 - Handle Android back gestures from the result page back to the input page.
@@ -148,9 +148,9 @@ The screenshots below were captured from a connected Android device using these 
 
 ### Adaptive Icon
 
-The Android app uses Adaptive Icon layers instead of a single pre-composed bitmap:
+The Android app uses Adaptive Icon layers instead of a single pre-composed bitmap. The current foreground preserves the original film mark proportions so Samsung's default launcher theme does not stretch the bare foreground artwork:
 
-- `app/src/main/res/drawable/ic_launcher_foreground.xml` - foreground layer with safe margins and no pre-clipped rounded shape, circular background, frame, or shadow.
+- `app/src/main/res/drawable/ic_launcher_foreground.xml` - foreground layer using the original dark film mark and lime X proportions.
 - `app/src/main/res/values/colors.xml` - background color layer.
 - `app/src/main/res/drawable/ic_launcher_monochrome.xml` - monochrome layer for themed icon support.
 - `app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` - adaptive icon entry.
