@@ -5,28 +5,28 @@
     android:viewportWidth="108"
     android:viewportHeight="108">
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M31,28h7a2,2 0,0 1,2 2v5a2,2 0,0 1,-2 2h-7a2,2 0,0 1,-2 -2v-5a2,2 0,0 1,2 -2z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M33,28h5a2,2 0,0 1,2 2v5a2,2 0,0 1,-2 2h-5a2,2 0,0 1,-2 -2v-5a2,2 0,0 1,2 -2z" />
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M31,43h7a2,2 0,0 1,2 2v5a2,2 0,0 1,-2 2h-7a2,2 0,0 1,-2 -2v-5a2,2 0,0 1,2 -2z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M33,43h5a2,2 0,0 1,2 2v5a2,2 0,0 1,-2 2h-5a2,2 0,0 1,-2 -2v-5a2,2 0,0 1,2 -2z" />
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M31,58h7a2,2 0,0 1,2 2v5a2,2 0,0 1,-2 2h-7a2,2 0,0 1,-2 -2v-5a2,2 0,0 1,2 -2z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M33,58h5a2,2 0,0 1,2 2v5a2,2 0,0 1,-2 2h-5a2,2 0,0 1,-2 -2v-5a2,2 0,0 1,2 -2z" />
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M70,28h7a2,2 0,0 1,2 2v5a2,2 0,0 1,-2 2h-7a2,2 0,0 1,-2 -2v-5a2,2 0,0 1,2 -2z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M72,28h5a2,2 0,0 1,2 2v5a2,2 0,0 1,-2 2h-5a2,2 0,0 1,-2 -2v-5a2,2 0,0 1,2 -2z" />
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M70,43h7a2,2 0,0 1,2 2v5a2,2 0,0 1,-2 2h-7a2,2 0,0 1,-2 -2v-5a2,2 0,0 1,2 -2z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M72,43h5a2,2 0,0 1,2 2v5a2,2 0,0 1,-2 2h-5a2,2 0,0 1,-2 -2v-5a2,2 0,0 1,2 -2z" />
     <path
-        android:fillColor="#FFFFFFFF"
-        android:pathData="M70,58h7a2,2 0,0 1,2 2v5a2,2 0,0 1,-2 2h-7a2,2 0,0 1,-2 -2v-5a2,2 0,0 1,2 -2z" />
+        android:fillColor="#FFFFFF"
+        android:pathData="M72,58h5a2,2 0,0 1,2 2v5a2,2 0,0 1,-2 2h-5a2,2 0,0 1,-2 -2v-5a2,2 0,0 1,2 -2z" />
     <path
-        android:fillColor="#FFFFFFFF"
+        android:fillColor="#FFFFFF"
         android:pathData="M45,32h8l4,13l4,-13h8l-8,21l9,23h-8l-5,-15l-6,15h-8l9,-23z" />
     <path
-        android:strokeColor="#FFFFFFFF"
+        android:strokeColor="#FFFFFF"
         android:strokeWidth="5"
         android:strokeLineCap="round"
         android:fillColor="@android:color/transparent"
