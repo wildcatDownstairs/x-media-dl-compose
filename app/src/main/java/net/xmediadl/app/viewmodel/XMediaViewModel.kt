@@ -17,7 +17,9 @@ import net.xmediadl.app.download.GalleryDownloader
 import net.xmediadl.app.download.buildFileName
 import net.xmediadl.app.model.MediaItem
 import net.xmediadl.app.model.PendingDownload
+import net.xmediadl.app.model.PhotoEntry
 import net.xmediadl.app.model.ResolvedPost
+import net.xmediadl.app.model.VideoEntry
 import net.xmediadl.app.model.fileExtension
 import net.xmediadl.app.network.SaveTwitterResolver
 import net.xmediadl.app.utils.looksLikeXUrl
@@ -142,11 +144,12 @@ class XMediaViewModel(
                             item = item,
                             postUrl = post.postUrl,
                             postTitle = post.title.ifBlank { "Untitled post" },
+                            previewUrl = post.firstPreviewUrl(),
                         ),
                     )
                 }
             } else {
-                performDownload(item, post.postUrl, post.title.ifBlank { "Untitled post" })
+                performDownload(item, post.postUrl, post.title.ifBlank { "Untitled post" }, post.firstPreviewUrl())
             }
         }
     }
@@ -154,7 +157,7 @@ class XMediaViewModel(
     fun confirmDuplicateDownload() {
         val pending = uiState.value.pendingDownload ?: return
         _uiState.update { it.copy(pendingDownload = null) }
-        performDownload(pending.item, pending.postUrl, pending.postTitle)
+        performDownload(pending.item, pending.postUrl, pending.postTitle, pending.previewUrl)
     }
 
     fun dismissDuplicateDialog() {
@@ -201,7 +204,7 @@ class XMediaViewModel(
         }
     }
 
-    private fun performDownload(item: MediaItem, postUrl: String, postTitle: String) {
+    private fun performDownload(item: MediaItem, postUrl: String, postTitle: String, previewUrl: String?) {
         val pendingName = buildFileName(postTitle, item.quality, item.fileExtension(), item.fileSuffix)
         _uiState.update { it.copy(notice = "开始保存到相册：$pendingName") }
 
@@ -214,6 +217,7 @@ class XMediaViewModel(
                         mediaUrl = item.url,
                         mediaType = item.type.name,
                         fileName = savedName,
+                        previewUrl = previewUrl,
                     )
                     _uiState.update { it.copy(notice = "已保存到相册：$savedName") }
                     refreshHistory()
@@ -239,4 +243,19 @@ class XMediaViewModel(
             return XMediaViewModel(context, initialUrl) as T
         }
     }
+}
+
+private fun ResolvedPost.firstPreviewUrl(): String? {
+    // 历史列表右侧需要一张稳定的预览图。
+    // 优先用第一个媒体资源的图片：图片帖用图片本身，视频帖用封面；
+    // 如果解析结果没有明确封面，再退回帖子缩略图。
+    return mediaEntries.asSequence()
+        .mapNotNull { entry ->
+            when (entry) {
+                is PhotoEntry -> entry.photo.url
+                is VideoEntry -> entry.cover?.url
+            }
+        }
+        .firstOrNull()
+        ?: thumbnailUrl
 }

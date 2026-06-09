@@ -13,11 +13,13 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
@@ -35,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
@@ -380,38 +383,82 @@ fun HistoryScreen(
 
 @Composable
 fun HistoryItem(item: DownloadHistoryPost, onOpenPost: (String) -> Unit) {
-    Column(
+    var previewBitmap by remember(item.previewUrl) { mutableStateOf<Bitmap?>(null) }
+
+    LaunchedEffect(item.previewUrl) {
+        previewBitmap = item.previewUrl?.let { RemoteImageLoader.loadBitmap(it) }
+    }
+
+    Box(
         modifier = Modifier
             .fillMaxWidth()
+            .height(128.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(AppColors.Surface)
             .border(1.dp, AppColors.Border, RoundedCornerShape(12.dp))
-            .clickable { onOpenPost(item.postUrl) }
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .clickable { onOpenPost(item.postUrl) },
     ) {
-        Text(
-            item.title.ifBlank { item.postUrl },
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
-            fontSize = 17.sp,
-            lineHeight = 22.sp,
-            fontWeight = FontWeight.Bold,
-        )
-        Text(
-            "${item.itemCount} 个下载项 · ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(item.lastDownloadedAt))}",
-            color = AppColors.TextSecondary,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 12.sp,
-        )
-        Text(
-            item.postUrl,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            color = AppColors.TextMuted,
-            fontFamily = FontFamily.Monospace,
-            fontSize = 11.sp,
-        )
+        val currentPreview = previewBitmap
+        if (currentPreview != null) {
+            Image(
+                bitmap = currentPreview.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .width(172.dp),
+                contentScale = ContentScale.Crop,
+            )
+            Box(
+                modifier = Modifier
+                    .matchParentSize()
+                    .background(
+                        Brush.horizontalGradient(
+                            0f to AppColors.Surface,
+                            0.56f to AppColors.Surface,
+                            0.78f to AppColors.Surface.copy(alpha = 0.72f),
+                            1f to AppColors.Surface.copy(alpha = 0.18f),
+                        ),
+                    ),
+            )
+            Box(
+                modifier = Modifier
+                    .align(Alignment.CenterEnd)
+                    .fillMaxHeight()
+                    .width(172.dp)
+                    .background(Color.Black.copy(alpha = 0.18f)),
+            )
+        }
+
+        Column(
+            modifier = Modifier
+                .matchParentSize()
+                .padding(14.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            Text(
+                item.title.ifBlank { item.postUrl },
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                fontSize = 17.sp,
+                lineHeight = 22.sp,
+                fontWeight = FontWeight.Bold,
+            )
+            Text(
+                "${item.itemCount} 个下载项 · ${DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT).format(Date(item.lastDownloadedAt))}",
+                color = AppColors.TextSecondary,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 12.sp,
+            )
+            Text(
+                item.postUrl,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+                color = AppColors.TextMuted,
+                fontFamily = FontFamily.Monospace,
+                fontSize = 11.sp,
+            )
+        }
     }
 }
 

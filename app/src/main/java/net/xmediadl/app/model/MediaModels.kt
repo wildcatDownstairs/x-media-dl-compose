@@ -40,12 +40,14 @@ data class DownloadHistoryPost(
     val title: String,
     val itemCount: Int,
     val lastDownloadedAt: Long,
+    val previewUrl: String?,
 )
 
 data class PendingDownload(
     val item: MediaItem,
     val postUrl: String,
     val postTitle: String,
+    val previewUrl: String?,
 )
 
 fun MediaItem.fileExtension(): String = when (type) {

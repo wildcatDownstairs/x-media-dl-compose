@@ -9,7 +9,7 @@ import kotlinx.coroutines.withContext
 import net.xmediadl.app.model.DownloadHistoryPost
 
 class DownloadHistoryStore(context: Context) :
-    SQLiteOpenHelper(context, "download_history.db", null, 1) {
+    SQLiteOpenHelper(context, "download_history.db", null, 2) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -21,7 +21,8 @@ class DownloadHistoryStore(context: Context) :
                 media_url TEXT NOT NULL UNIQUE,
                 media_type TEXT NOT NULL,
                 file_name TEXT NOT NULL,
-                downloaded_at INTEGER NOT NULL
+                downloaded_at INTEGER NOT NULL,
+                preview_url TEXT
             )
             """.trimIndent(),
         )
@@ -30,8 +31,11 @@ class DownloadHistoryStore(context: Context) :
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS downloads")
-        onCreate(db)
+        if (oldVersion < 2) {
+            // 旧版本已经在用户手机里存过下载历史，不能为了加一个字段直接删表。
+            // SQLite 支持 ALTER TABLE ADD COLUMN，适合这种向后兼容的小升级。
+            db.execSQL("ALTER TABLE downloads ADD COLUMN preview_url TEXT")
+        }
     }
 
     suspend fun hasMedia(mediaUrl: String): Boolean = withContext(Dispatchers.IO) {
@@ -49,6 +53,7 @@ class DownloadHistoryStore(context: Context) :
         mediaUrl: String,
         mediaType: String,
         fileName: String,
+        previewUrl: String?,
     ) = withContext(Dispatchers.IO) {
         // media_url 是去重键。同一个资源再次下载时更新记录时间，
         // 相册里的旧文件不处理，由用户自己决定是否保留。
@@ -59,6 +64,7 @@ class DownloadHistoryStore(context: Context) :
             put("media_type", mediaType)
             put("file_name", fileName)
             put("downloaded_at", System.currentTimeMillis())
+            put("preview_url", previewUrl.orEmpty())
         }
         writableDatabase.insertWithOnConflict(
             "downloads",
@@ -72,7 +78,23 @@ class DownloadHistoryStore(context: Context) :
     suspend fun listPosts(): List<DownloadHistoryPost> = withContext(Dispatchers.IO) {
         readableDatabase.rawQuery(
             """
-            SELECT post_url, post_title, COUNT(*) AS item_count, MAX(downloaded_at) AS last_downloaded_at
+            SELECT
+                post_url,
+                post_title,
+                COUNT(*) AS item_count,
+                MAX(downloaded_at) AS last_downloaded_at,
+                COALESCE(
+                    (
+                        SELECT d2.preview_url
+                        FROM downloads d2
+                        WHERE d2.post_url = downloads.post_url
+                            AND d2.preview_url IS NOT NULL
+                            AND d2.preview_url != ''
+                        ORDER BY d2.downloaded_at ASC
+                        LIMIT 1
+                    ),
+                    ''
+                ) AS preview_url
             FROM downloads
             GROUP BY post_url
             ORDER BY last_downloaded_at DESC
@@ -87,6 +109,7 @@ class DownloadHistoryStore(context: Context) :
                             title = cursor.getString(1),
                             itemCount = cursor.getInt(2),
                             lastDownloadedAt = cursor.getLong(3),
+                            previewUrl = cursor.getString(4).ifBlank { null },
                         ),
                     )
                 }
