@@ -134,6 +134,13 @@ class XMediaViewModel(
         refreshHistory()
     }
 
+    fun deleteHistoryPost(postUrl: String) {
+        scope.launch {
+            historyStore.deletePost(postUrl)
+            refreshHistory()
+        }
+    }
+
     fun requestDownload(item: MediaItem) {
         val post = uiState.value.resolved ?: return
         scope.launch {

@@ -1,7 +1,12 @@
 package net.xmediadl.app.ui
 
 import android.graphics.Bitmap
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectHorizontalDragGestures
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -17,6 +22,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -33,6 +39,7 @@ import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -42,7 +49,10 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -50,6 +60,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.launch
 import net.xmediadl.app.model.DownloadHistoryPost
 import net.xmediadl.app.model.MediaItem
 import net.xmediadl.app.model.PhotoEntry
@@ -58,6 +69,7 @@ import net.xmediadl.app.model.VideoEntry
 import net.xmediadl.app.network.RemoteImageLoader
 import java.text.DateFormat
 import java.util.Date
+import kotlin.math.roundToInt
 
 @Composable
 fun TopBar() {
@@ -351,6 +363,7 @@ fun ErrorPanel(message: String) {
 fun HistoryScreen(
     history: List<DownloadHistoryPost>,
     onOpenPost: (String) -> Unit,
+    onDeletePost: (String) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Column {
@@ -376,14 +389,24 @@ fun HistoryScreen(
         }
 
         history.forEach { item ->
-            HistoryItem(item = item, onOpenPost = onOpenPost)
+            HistoryItem(item = item, onOpenPost = onOpenPost, onDeletePost = onDeletePost)
         }
     }
 }
 
 @Composable
-fun HistoryItem(item: DownloadHistoryPost, onOpenPost: (String) -> Unit) {
+fun HistoryItem(
+    item: DownloadHistoryPost,
+    onOpenPost: (String) -> Unit,
+    onDeletePost: (String) -> Unit,
+) {
     var previewBitmap by remember(item.previewUrl) { mutableStateOf<Bitmap?>(null) }
+    var itemWidthPx by remember(item.postUrl) { mutableStateOf(0) }
+    val density = LocalDensity.current
+    val scope = rememberCoroutineScope()
+    val offsetX = remember(item.postUrl) { Animatable(0f) }
+    val deleteThresholdPx = with(density) { 92.dp.toPx() }
+    val maxDragPx = with(density) { 132.dp.toPx() }
 
     LaunchedEffect(item.previewUrl) {
         previewBitmap = item.previewUrl?.let { RemoteImageLoader.loadBitmap(it) }
@@ -394,19 +417,87 @@ fun HistoryItem(item: DownloadHistoryPost, onOpenPost: (String) -> Unit) {
             .fillMaxWidth()
             .height(128.dp)
             .clip(RoundedCornerShape(12.dp))
-            .background(AppColors.Surface)
-            .border(1.dp, AppColors.Border, RoundedCornerShape(12.dp))
-            .clickable { onOpenPost(item.postUrl) },
+            .background(Color(0xFF351212)),
     ) {
+        Row(
+            modifier = Modifier
+                .matchParentSize()
+                .padding(end = 22.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                "DELETE",
+                color = Color(0xFFFFA0A0),
+                fontFamily = FontFamily.Monospace,
+                fontWeight = FontWeight.Bold,
+                fontSize = 12.sp,
+            )
+        }
+
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .onSizeChanged { itemWidthPx = it.width }
+                .offset { androidx.compose.ui.unit.IntOffset(offsetX.value.roundToInt(), 0) }
+                .clip(RoundedCornerShape(12.dp))
+                .background(AppColors.Surface)
+                .border(1.dp, AppColors.Border, RoundedCornerShape(12.dp))
+                .pointerInput(item.postUrl) {
+                    detectHorizontalDragGestures(
+                        onHorizontalDrag = { change, dragAmount ->
+                            change.consume()
+                            val nextOffset = (offsetX.value + dragAmount).coerceIn(-maxDragPx, 0f)
+                            scope.launch { offsetX.snapTo(nextOffset) }
+                        },
+                        onDragEnd = {
+                            scope.launch {
+                                if (offsetX.value <= -deleteThresholdPx) {
+                                    offsetX.animateTo(
+                                        targetValue = -maxDragPx,
+                                        animationSpec = spring(
+                                            dampingRatio = 0.42f,
+                                            stiffness = Spring.StiffnessMedium,
+                                        ),
+                                    )
+                                    offsetX.animateTo(
+                                        targetValue = -(itemWidthPx.takeIf { it > 0 } ?: 900).toFloat(),
+                                        animationSpec = tween(durationMillis = 180),
+                                    )
+                                    onDeletePost(item.postUrl)
+                                } else {
+                                    offsetX.animateTo(
+                                        targetValue = 0f,
+                                        animationSpec = spring(
+                                            dampingRatio = 0.38f,
+                                            stiffness = Spring.StiffnessMediumLow,
+                                        ),
+                                    )
+                                }
+                            }
+                        },
+                        onDragCancel = {
+                            scope.launch {
+                                offsetX.animateTo(
+                                    targetValue = 0f,
+                                    animationSpec = spring(
+                                        dampingRatio = 0.38f,
+                                        stiffness = Spring.StiffnessMediumLow,
+                                    ),
+                                )
+                            }
+                        },
+                    )
+                }
+                .clickable { onOpenPost(item.postUrl) },
+        ) {
         val currentPreview = previewBitmap
         if (currentPreview != null) {
             Image(
                 bitmap = currentPreview.asImageBitmap(),
                 contentDescription = null,
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .fillMaxHeight()
-                    .width(172.dp),
+                    .matchParentSize(),
                 contentScale = ContentScale.Crop,
             )
             Box(
@@ -415,17 +506,15 @@ fun HistoryItem(item: DownloadHistoryPost, onOpenPost: (String) -> Unit) {
                     .background(
                         Brush.horizontalGradient(
                             0f to AppColors.Surface,
-                            0.56f to AppColors.Surface,
-                            0.78f to AppColors.Surface.copy(alpha = 0.72f),
-                            1f to AppColors.Surface.copy(alpha = 0.18f),
+                            0.42f to AppColors.Surface.copy(alpha = 0.98f),
+                            0.68f to AppColors.Surface.copy(alpha = 0.78f),
+                            1f to AppColors.Surface.copy(alpha = 0.30f),
                         ),
                     ),
             )
             Box(
                 modifier = Modifier
-                    .align(Alignment.CenterEnd)
-                    .fillMaxHeight()
-                    .width(172.dp)
+                    .matchParentSize()
                     .background(Color.Black.copy(alpha = 0.18f)),
             )
         }
@@ -458,6 +547,7 @@ fun HistoryItem(item: DownloadHistoryPost, onOpenPost: (String) -> Unit) {
                 fontFamily = FontFamily.Monospace,
                 fontSize = 11.sp,
             )
+        }
         }
     }
 }

@@ -66,6 +66,7 @@ fun XMediaDownloaderApp(viewModel: XMediaViewModel) {
                         AppScreen.History -> HistoryScreen(
                             history = state.history,
                             onOpenPost = { postUrl -> context.openPostUrl(postUrl) },
+                            onDeletePost = viewModel::deleteHistoryPost,
                         )
                         AppScreen.Result -> ResultScreen(
                             loading = state.loading,

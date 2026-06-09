@@ -116,4 +116,15 @@ class DownloadHistoryStore(context: Context) :
             }
         }
     }
+
+    suspend fun deletePost(postUrl: String) = withContext(Dispatchers.IO) {
+        // 这里删除的是 App 自己的下载历史，不会触碰相册里的图片或视频文件。
+        // 一个帖子可能有多张图或多个视频，所以按 post_url 删除该帖的全部历史项。
+        writableDatabase.delete(
+            "downloads",
+            "post_url = ?",
+            arrayOf(postUrl),
+        )
+        Unit
+    }
 }
