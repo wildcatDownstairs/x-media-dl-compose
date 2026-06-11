@@ -1,6 +1,7 @@
 package net.xmediadl.app.ui
 
 import android.graphics.Bitmap
+import android.graphics.Bitmap.Config
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -33,6 +34,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -52,7 +55,10 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalInspectionMode
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -61,6 +67,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.launch
+import net.xmediadl.app.data.HistoryPreviewStore
 import net.xmediadl.app.model.DownloadHistoryPost
 import net.xmediadl.app.model.MediaItem
 import net.xmediadl.app.model.PhotoEntry
@@ -93,6 +100,7 @@ fun TopBar() {
                     fontSize = 15.sp,
                     fontWeight = FontWeight.Bold,
                     letterSpacing = (-1).sp,
+                    modifier = Modifier.offset(x = 1.dp),
                 )
             }
             Text(
@@ -399,8 +407,14 @@ fun HistoryItem(
     item: DownloadHistoryPost,
     onOpenPost: (String) -> Unit,
     onDeletePost: (String) -> Unit,
+    previewBitmapOverride: Bitmap? = null,
 ) {
-    var previewBitmap by remember(item.previewUrl) { mutableStateOf<Bitmap?>(null) }
+    val context = LocalContext.current
+    val previewStore = remember { HistoryPreviewStore(context.applicationContext) }
+    val isPreviewMode = LocalInspectionMode.current
+    var previewBitmap by remember(item.previewPath, item.previewUrl, previewBitmapOverride) {
+        mutableStateOf(previewBitmapOverride)
+    }
     var itemWidthPx by remember(item.postUrl) { mutableStateOf(0) }
     val density = LocalDensity.current
     val scope = rememberCoroutineScope()
@@ -408,8 +422,16 @@ fun HistoryItem(
     val deleteThresholdPx = with(density) { 92.dp.toPx() }
     val maxDragPx = with(density) { 132.dp.toPx() }
 
-    LaunchedEffect(item.previewUrl) {
-        previewBitmap = item.previewUrl?.let { RemoteImageLoader.loadBitmap(it) }
+    LaunchedEffect(item.previewPath, item.previewUrl, previewBitmapOverride, isPreviewMode) {
+        if (previewBitmapOverride != null || isPreviewMode) {
+            previewBitmap = previewBitmapOverride
+            return@LaunchedEffect
+        }
+
+        // 历史页优先走本地缩略图。
+        // 只有旧数据还没完成迁移时，才退回远端地址临时拉一次。
+        previewBitmap = previewStore.loadBitmap(item.previewPath)
+            ?: item.previewUrl?.let { RemoteImageLoader.loadBitmap(it) }
     }
 
     Box(
@@ -506,16 +528,16 @@ fun HistoryItem(
                     .background(
                         Brush.horizontalGradient(
                             0f to AppColors.Surface,
-                            0.42f to AppColors.Surface.copy(alpha = 0.98f),
-                            0.68f to AppColors.Surface.copy(alpha = 0.78f),
-                            1f to AppColors.Surface.copy(alpha = 0.30f),
+                            0.38f to AppColors.Surface.copy(alpha = 0.94f),
+                            0.66f to AppColors.Surface.copy(alpha = 0.66f),
+                            1f to AppColors.Surface.copy(alpha = 0.18f),
                         ),
                     ),
             )
             Box(
                 modifier = Modifier
                     .matchParentSize()
-                    .background(Color.Black.copy(alpha = 0.18f)),
+                    .background(Color.Black.copy(alpha = 0.10f)),
             )
         }
 
@@ -637,9 +659,20 @@ fun DownloadButton(
 
 @Composable
 fun RemotePreview(url: String?) {
-    var bitmap by remember(url) { mutableStateOf<Bitmap?>(null) }
+    RemotePreview(url = url, bitmapOverride = null)
+}
 
-    LaunchedEffect(url) {
+@Composable
+private fun RemotePreview(url: String?, bitmapOverride: Bitmap?) {
+    val isPreviewMode = LocalInspectionMode.current
+    var bitmap by remember(url, bitmapOverride) { mutableStateOf(bitmapOverride) }
+
+    LaunchedEffect(url, bitmapOverride, isPreviewMode) {
+        if (bitmapOverride != null || isPreviewMode) {
+            bitmap = bitmapOverride
+            return@LaunchedEffect
+        }
+
         bitmap = if (url.isNullOrBlank()) null else RemoteImageLoader.loadBitmap(url)
     }
 
@@ -669,5 +702,263 @@ fun RemotePreview(url: String?) {
 fun Footer() {
     Box(modifier = Modifier.fillMaxWidth().padding(top = 32.dp, bottom = 12.dp), contentAlignment = Alignment.Center) {
         Text("Personal use only · powered by savetwitter api", color = AppColors.TextMuted, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
+    }
+}
+
+@Composable
+private fun PreviewFrame(
+    modifier: Modifier = Modifier,
+    notice: String? = null,
+    content: @Composable () -> Unit,
+) {
+    Surface(
+        modifier = modifier,
+        color = AppColors.Background,
+        contentColor = AppColors.TextPrimary,
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(AppColors.Background),
+        ) {
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = 16.dp, vertical = 20.dp),
+            ) {
+                TopBar()
+                Spacer(Modifier.height(32.dp))
+                content()
+                Spacer(Modifier.weight(1f))
+                Footer()
+            }
+
+            if (notice != null) {
+                TopNotice(
+                    message = notice,
+                    modifier = Modifier
+                        .align(Alignment.TopCenter)
+                        .padding(top = 12.dp, start = 16.dp, end = 16.dp),
+                )
+            }
+        }
+    }
+}
+
+private fun samplePreviewBitmap(color: Int): Bitmap {
+    return Bitmap.createBitmap(720, 720, Config.ARGB_8888).apply {
+        eraseColor(color)
+    }
+}
+
+private val previewRemoteBitmap: Bitmap
+    get() = samplePreviewBitmap(0xFF3398DB.toInt())
+
+private val previewHistoryBitmap: Bitmap
+    get() = samplePreviewBitmap(0xFF735C3F.toInt())
+
+private fun previewResolvedPost(): ResolvedPost {
+    return ResolvedPost(
+        title = "The new #TwitterAPI includes some interesting changes worth watching.",
+        duration = "0:14",
+        thumbnailUrl = null,
+        mediaEntries = listOf(
+            VideoEntry(
+                video = MediaItem(
+                    label = "Download MP4",
+                    url = "https://example.com/video.mp4",
+                    type = net.xmediadl.app.model.MediaType.Video,
+                    quality = 1080,
+                ),
+                cover = MediaItem(
+                    label = "Download Cover",
+                    url = "https://example.com/cover.jpg",
+                    type = net.xmediadl.app.model.MediaType.Photo,
+                    fileSuffix = "-cover",
+                ),
+            ),
+            PhotoEntry(
+                photo = MediaItem(
+                    label = "Download Photo",
+                    url = "https://example.com/photo.jpg",
+                    type = net.xmediadl.app.model.MediaType.Photo,
+                ),
+            ),
+        ),
+        elapsedMs = 550,
+        postUrl = "https://x.com/user/status/1234567890",
+    )
+}
+
+private fun previewHistoryItems(): List<DownloadHistoryPost> {
+    val now = System.currentTimeMillis()
+    return listOf(
+        DownloadHistoryPost(
+            postUrl = "https://x.com/CuteCatsMagic/status/2057125030610301155?s=20",
+            title = "BREAKING UAE WILL LAUNCH AN OIL PIPELINE BYPASSING THE STRAIT OF HORMUZ",
+            itemCount = 4,
+            lastDownloadedAt = now,
+            previewUrl = null,
+            previewPath = null,
+            previewFileName = "sample-1.jpg",
+            previewMediaType = "Video",
+        ),
+        DownloadHistoryPost(
+            postUrl = "https://x.com/CuteCatsMagic/status/2057319463423181065?s=20",
+            title = "Untitled post",
+            itemCount = 2,
+            lastDownloadedAt = now - 86_400_000L,
+            previewUrl = null,
+            previewPath = null,
+            previewFileName = "sample-2.jpg",
+            previewMediaType = "Photo",
+        ),
+    )
+}
+
+@Preview(
+    name = "Home Screen",
+    showBackground = true,
+    backgroundColor = 0xFF0A0A0A,
+    widthDp = 412,
+    heightDp = 915,
+)
+@Composable
+private fun HomeScreenPreview() {
+    MaterialTheme {
+        PreviewFrame(notice = "已保存到相册：sample-1080p.mp4") {
+            HomeScreen(
+                input = "https://x.com/user/status/...",
+                error = null,
+                onInputChange = {},
+                onPaste = {},
+                onResolve = {},
+                onHistory = {},
+            )
+        }
+    }
+}
+
+@Preview(
+    name = "Result Screen",
+    showBackground = true,
+    backgroundColor = 0xFF0A0A0A,
+    widthDp = 412,
+    heightDp = 915,
+)
+@Composable
+private fun ResultScreenPreview() {
+    MaterialTheme {
+        PreviewFrame {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column {
+                    Text("// 解析结果", color = AppColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Text("选择要下载的媒体", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                }
+                Text(
+                    "视频 / 图片 · 2 个媒体资源 · 550 ms",
+                    color = Color(0xFFB7B7B7),
+                    fontFamily = FontFamily.Monospace,
+                    fontSize = 12.sp,
+                )
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(AppColors.Surface)
+                        .border(1.dp, AppColors.Border, RoundedCornerShape(12.dp))
+                        .padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    RemotePreview(url = null, bitmapOverride = previewRemoteBitmap)
+                    previewResolvedPost().mediaEntries.forEach { entry ->
+                        when (entry) {
+                            is VideoEntry -> VideoDownloadRow(entry, onDownload = {})
+                            is PhotoEntry -> DownloadButton(entry.photo, onDownload = {})
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    Text(
+                        "The new #TwitterAPI includes some interesting changes worth watching.",
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        fontSize = 18.sp,
+                        lineHeight = 24.sp,
+                        fontWeight = FontWeight.Bold,
+                    )
+                    Text("0:14", color = AppColors.TextSecondary, fontFamily = FontFamily.Monospace, fontSize = 13.sp)
+                }
+                Button(
+                    onClick = {},
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(56.dp)
+                        .border(1.dp, Color.White.copy(alpha = 0.24f), RoundedCornerShape(10.dp)),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = Color.White.copy(alpha = 0.05f),
+                        contentColor = Color(0xFFD6D6D6),
+                    ),
+                    shape = RoundedCornerShape(10.dp),
+                ) {
+                    Text("↩ Download more videos", fontFamily = FontFamily.Monospace, fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                }
+            }
+        }
+    }
+}
+
+@Preview(
+    name = "History Screen",
+    showBackground = true,
+    backgroundColor = 0xFF0A0A0A,
+    widthDp = 412,
+    heightDp = 915,
+)
+@Composable
+private fun HistoryScreenPreview() {
+    MaterialTheme {
+        PreviewFrame {
+            Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
+                Column {
+                    Text("// 下载历史", color = AppColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                    Spacer(Modifier.height(6.dp))
+                    Text("已下载的帖子", fontSize = 22.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Text("点击条目会打开本机 X / Twitter 应用", color = Color(0xFFB7B7B7), fontFamily = FontFamily.Monospace, fontSize = 12.sp)
+                }
+                previewHistoryItems().forEach { item ->
+                    HistoryItem(
+                        item = item,
+                        onOpenPost = {},
+                        onDeletePost = {},
+                        previewBitmapOverride = previewHistoryBitmap,
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Preview(
+    name = "History Item",
+    showBackground = true,
+    backgroundColor = 0xFF0A0A0A,
+    widthDp = 412,
+    heightDp = 180,
+)
+@Composable
+private fun HistoryItemPreview() {
+    MaterialTheme {
+        Surface(color = AppColors.Background) {
+            Box(modifier = Modifier.padding(16.dp)) {
+                HistoryItem(
+                    item = previewHistoryItems().first(),
+                    onOpenPost = {},
+                    onDeletePost = {},
+                    previewBitmapOverride = previewHistoryBitmap,
+                )
+            }
+        }
     }
 }

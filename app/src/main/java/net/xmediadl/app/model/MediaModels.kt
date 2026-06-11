@@ -41,6 +41,9 @@ data class DownloadHistoryPost(
     val itemCount: Int,
     val lastDownloadedAt: Long,
     val previewUrl: String?,
+    val previewPath: String?,
+    val previewFileName: String?,
+    val previewMediaType: String?,
 )
 
 data class PendingDownload(
@@ -48,6 +51,7 @@ data class PendingDownload(
     val postUrl: String,
     val postTitle: String,
     val previewUrl: String?,
+    val previewPath: String?,
 )
 
 fun MediaItem.fileExtension(): String = when (type) {

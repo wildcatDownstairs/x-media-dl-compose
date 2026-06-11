@@ -9,7 +9,7 @@ import kotlinx.coroutines.withContext
 import net.xmediadl.app.model.DownloadHistoryPost
 
 class DownloadHistoryStore(context: Context) :
-    SQLiteOpenHelper(context, "download_history.db", null, 2) {
+    SQLiteOpenHelper(context, "download_history.db", null, 3) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -22,7 +22,8 @@ class DownloadHistoryStore(context: Context) :
                 media_type TEXT NOT NULL,
                 file_name TEXT NOT NULL,
                 downloaded_at INTEGER NOT NULL,
-                preview_url TEXT
+                preview_url TEXT,
+                preview_path TEXT
             )
             """.trimIndent(),
         )
@@ -35,6 +36,11 @@ class DownloadHistoryStore(context: Context) :
             // 旧版本已经在用户手机里存过下载历史，不能为了加一个字段直接删表。
             // SQLite 支持 ALTER TABLE ADD COLUMN，适合这种向后兼容的小升级。
             db.execSQL("ALTER TABLE downloads ADD COLUMN preview_url TEXT")
+        }
+        if (oldVersion < 3) {
+            // 仅保存远端预览 URL 在冷启动后并不可靠，CDN 或鉴权变化就会丢图。
+            // 这里补一个本地预览文件路径字段，后续历史列表优先读本地文件。
+            db.execSQL("ALTER TABLE downloads ADD COLUMN preview_path TEXT")
         }
     }
 
@@ -54,6 +60,7 @@ class DownloadHistoryStore(context: Context) :
         mediaType: String,
         fileName: String,
         previewUrl: String?,
+        previewPath: String?,
     ) = withContext(Dispatchers.IO) {
         // media_url 是去重键。同一个资源再次下载时更新记录时间，
         // 相册里的旧文件不处理，由用户自己决定是否保留。
@@ -65,6 +72,7 @@ class DownloadHistoryStore(context: Context) :
             put("file_name", fileName)
             put("downloaded_at", System.currentTimeMillis())
             put("preview_url", previewUrl.orEmpty())
+            put("preview_path", previewPath.orEmpty())
         }
         writableDatabase.insertWithOnConflict(
             "downloads",
@@ -94,7 +102,43 @@ class DownloadHistoryStore(context: Context) :
                         LIMIT 1
                     ),
                     ''
-                ) AS preview_url
+                ) AS preview_url,
+                COALESCE(
+                    (
+                        SELECT d3.preview_path
+                        FROM downloads d3
+                        WHERE d3.post_url = downloads.post_url
+                            AND d3.preview_path IS NOT NULL
+                            AND d3.preview_path != ''
+                        ORDER BY d3.downloaded_at ASC
+                        LIMIT 1
+                    ),
+                    ''
+                ) AS preview_path,
+                COALESCE(
+                    (
+                        SELECT d4.file_name
+                        FROM downloads d4
+                        WHERE d4.post_url = downloads.post_url
+                            AND d4.file_name IS NOT NULL
+                            AND d4.file_name != ''
+                        ORDER BY d4.downloaded_at ASC
+                        LIMIT 1
+                    ),
+                    ''
+                ) AS preview_file_name,
+                COALESCE(
+                    (
+                        SELECT d5.media_type
+                        FROM downloads d5
+                        WHERE d5.post_url = downloads.post_url
+                            AND d5.media_type IS NOT NULL
+                            AND d5.media_type != ''
+                        ORDER BY d5.downloaded_at ASC
+                        LIMIT 1
+                    ),
+                    ''
+                ) AS preview_media_type
             FROM downloads
             GROUP BY post_url
             ORDER BY last_downloaded_at DESC
@@ -110,11 +154,27 @@ class DownloadHistoryStore(context: Context) :
                             itemCount = cursor.getInt(2),
                             lastDownloadedAt = cursor.getLong(3),
                             previewUrl = cursor.getString(4).ifBlank { null },
+                            previewPath = cursor.getString(5).ifBlank { null },
+                            previewFileName = cursor.getString(6).ifBlank { null },
+                            previewMediaType = cursor.getString(7).ifBlank { null },
                         ),
                     )
                 }
             }
         }
+    }
+
+    suspend fun updatePreviewPath(postUrl: String, previewPath: String) = withContext(Dispatchers.IO) {
+        val values = ContentValues().apply {
+            put("preview_path", previewPath)
+        }
+        writableDatabase.update(
+            "downloads",
+            values,
+            "post_url = ?",
+            arrayOf(postUrl),
+        )
+        Unit
     }
 
     suspend fun deletePost(postUrl: String) = withContext(Dispatchers.IO) {

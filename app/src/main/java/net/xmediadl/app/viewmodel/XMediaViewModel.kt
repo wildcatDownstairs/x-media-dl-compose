@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import net.xmediadl.app.data.DownloadHistoryStore
+import net.xmediadl.app.data.HistoryPreviewStore
 import net.xmediadl.app.download.GalleryDownloader
 import net.xmediadl.app.download.buildFileName
 import net.xmediadl.app.model.MediaItem
@@ -50,6 +51,7 @@ class XMediaViewModel(
 ) : ViewModel() {
     private val appContext = context.applicationContext
     private val historyStore = DownloadHistoryStore(appContext)
+    private val previewStore = HistoryPreviewStore(appContext)
     private val resolver = SaveTwitterResolver()
     private val downloader = GalleryDownloader(appContext)
 
@@ -80,7 +82,16 @@ class XMediaViewModel(
     }
 
     fun resolveCurrentInput() {
-        resolve(uiState.value.input)
+        val currentInput = uiState.value.input
+        val clipboardUrl = readClipboardXUrl(appContext)
+
+        // 用户经常是“复制链接 -> 回到 App -> 直接点 Download”。
+        // 这里在输入框为空时自动回退到剪贴板，省掉必须再点一次 Paste 的步骤。
+        when {
+            currentInput.isNotBlank() -> resolve(currentInput)
+            clipboardUrl != null -> resolve(clipboardUrl)
+            else -> resolve(currentInput)
+        }
     }
 
     fun resolve(rawUrl: String) {
@@ -135,8 +146,10 @@ class XMediaViewModel(
     }
 
     fun deleteHistoryPost(postUrl: String) {
+        val previewPath = uiState.value.history.firstOrNull { it.postUrl == postUrl }?.previewPath
         scope.launch {
             historyStore.deletePost(postUrl)
+            previewStore.deletePreview(previewPath)
             refreshHistory()
         }
     }
@@ -152,11 +165,17 @@ class XMediaViewModel(
                             postUrl = post.postUrl,
                             postTitle = post.title.ifBlank { "Untitled post" },
                             previewUrl = post.firstPreviewUrl(),
+                            previewPath = null,
                         ),
                     )
                 }
             } else {
-                performDownload(item, post.postUrl, post.title.ifBlank { "Untitled post" }, post.firstPreviewUrl())
+                performDownload(
+                    item = item,
+                    postUrl = post.postUrl,
+                    postTitle = post.title.ifBlank { "Untitled post" },
+                    previewUrl = post.firstPreviewUrl(),
+                )
             }
         }
     }
@@ -164,7 +183,13 @@ class XMediaViewModel(
     fun confirmDuplicateDownload() {
         val pending = uiState.value.pendingDownload ?: return
         _uiState.update { it.copy(pendingDownload = null) }
-        performDownload(pending.item, pending.postUrl, pending.postTitle, pending.previewUrl)
+        performDownload(
+            item = pending.item,
+            postUrl = pending.postUrl,
+            postTitle = pending.postTitle,
+            previewUrl = pending.previewUrl,
+            previewPath = pending.previewPath,
+        )
     }
 
     fun dismissDuplicateDialog() {
@@ -207,17 +232,53 @@ class XMediaViewModel(
 
     private fun refreshHistory() {
         scope.launch {
-            _uiState.update { it.copy(history = historyStore.listPosts()) }
+            val history = historyStore.listPosts()
+            _uiState.update { it.copy(history = history) }
+
+            // 兼容旧数据：以前只有 preview_url，没有落本地文件。
+            // 现在除了远端 preview_url，也会尝试从相册里已下载的本地媒体文件反查预览。
+            // 这样用户过去已经下载过的历史项，不需要重新下载也能把缩略图补回来。
+            val repairedHistory = history.map { item ->
+                if (item.previewPath != null) {
+                    item
+                } else {
+                    val localPreviewPath = previewStore.ensurePreview(
+                        postUrl = item.postUrl,
+                        previewUrl = item.previewUrl,
+                        previewFileName = item.previewFileName,
+                        previewMediaType = item.previewMediaType,
+                    )
+                    if (localPreviewPath != null) {
+                        historyStore.updatePreviewPath(item.postUrl, localPreviewPath)
+                        item.copy(previewPath = localPreviewPath)
+                    } else {
+                        item
+                    }
+                }
+            }
+
+            if (repairedHistory != history) {
+                _uiState.update { it.copy(history = repairedHistory) }
+            }
         }
     }
 
-    private fun performDownload(item: MediaItem, postUrl: String, postTitle: String, previewUrl: String?) {
+    private fun performDownload(
+        item: MediaItem,
+        postUrl: String,
+        postTitle: String,
+        previewUrl: String?,
+        previewPath: String? = null,
+    ) {
         val pendingName = buildFileName(postTitle, item.quality, item.fileExtension(), item.fileSuffix)
         _uiState.update { it.copy(notice = "开始保存到相册：$pendingName") }
 
         scope.launch {
             runCatching { downloader.download(item, postTitle) }
                 .onSuccess { savedName ->
+                    // 每次确认下载时顺手缓存一张本地预览图。
+                    // 这样历史列表重进、冷启动、弱网时都不再依赖远端封面链接是否还能访问。
+                    val cachedPreviewPath = previewPath ?: previewStore.ensurePreview(postUrl, previewUrl)
                     historyStore.recordDownload(
                         postUrl = postUrl,
                         postTitle = postTitle.ifBlank { "Untitled post" },
@@ -225,6 +286,7 @@ class XMediaViewModel(
                         mediaType = item.type.name,
                         fileName = savedName,
                         previewUrl = previewUrl,
+                        previewPath = cachedPreviewPath,
                     )
                     _uiState.update { it.copy(notice = "已保存到相册：$savedName") }
                     refreshHistory()
@@ -256,13 +318,11 @@ private fun ResolvedPost.firstPreviewUrl(): String? {
     // 历史列表右侧需要一张稳定的预览图。
     // 优先用第一个媒体资源的图片：图片帖用图片本身，视频帖用封面；
     // 如果解析结果没有明确封面，再退回帖子缩略图。
-    return mediaEntries.asSequence()
-        .mapNotNull { entry ->
-            when (entry) {
-                is PhotoEntry -> entry.photo.url
-                is VideoEntry -> entry.cover?.url
-            }
+    return mediaEntries.firstNotNullOfOrNull { entry ->
+        when (entry) {
+            is PhotoEntry -> entry.photo.url
+            is VideoEntry -> entry.cover?.url
         }
-        .firstOrNull()
+    }
         ?: thumbnailUrl
 }
