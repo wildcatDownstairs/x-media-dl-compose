@@ -852,7 +852,7 @@ private fun ResultScreenPreview() {
         PreviewFrame {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Column {
-                    Text("// 解析结果", color = AppColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                    Text("// 解析结果", color = AppColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
                     Spacer(Modifier.height(6.dp))
                     Text("选择要下载的媒体", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                 }
@@ -921,7 +921,7 @@ private fun HistoryScreenPreview() {
         PreviewFrame {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
                 Column {
-                    Text("// 下载历史", color = AppColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 10.sp)
+                    Text("// 下载历史", color = AppColors.Accent, fontFamily = FontFamily.Monospace, fontSize = 11.sp)
                     Spacer(Modifier.height(6.dp))
                     Text("已下载的帖子", fontSize = 22.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))

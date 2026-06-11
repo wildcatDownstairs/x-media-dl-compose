@@ -23,6 +23,8 @@ com/
 *.webp
 !docs/screenshots/
 !docs/screenshots/*.png
+!docs/assets/app-icon.png
+!app/src/main/res/mipmap-*/ic_launcher.png
 
 # Node prototype dependencies
 node_modules/

@@ -3,7 +3,7 @@
 [中文](#中文) · [English](#english)
 
 <p align="center">
-  <img src="docs/assets/app-icon.svg" width="120" alt="X Media DL app icon" />
+  <img src="docs/assets/app-icon.png" width="120" alt="X Media DL app icon" />
 </p>
 
 <p align="center">
@@ -28,7 +28,7 @@ X Media DL Compose 是一个个人使用和学习用途的 X/Twitter 媒体下�
 - 视频封面下载与视频下载并排显示。
 - 独立图片单独显示下载按钮。
 - Android App 会把视频和图片保存到系统媒体库，方便在相册里查看。
-- 提供 Android Adaptive Icon：独立 foreground、background、monochrome 图层，并保留原始 film mark 比例。
+- 提供多分辨率 PNG launcher icon 资源，覆盖 `mdpi` 到 `xxxhdpi`。
 - 使用本地 SQLite 记录下载历史，同一媒体再次下载前会提示确认，不会删除相册里已有文件。
 - 下载历史按帖子聚合展示，标题最多两行，点击条目会打开本机 X / Twitter 应用。
 - 支持 Android 返回手势从结果页回到输入页。
@@ -49,16 +49,15 @@ X Media DL Compose 是一个个人使用和学习用途的 X/Twitter 媒体下�
 | --- | --- |
 | ![图片帖下载页](docs/screenshots/result-image.png) | ![视频帖下载页](docs/screenshots/result-video.png) |
 
-### Adaptive Icon
+### App Icon
 
-Android App 使用 Adaptive Icon，而不是只提供一张成品图。当前版本保留原始 film mark 比例，避免三星默认主题把裸前景图拉伸变形：
+Android App 现在直接使用位于 `mipmap-*` 目录下的 PNG launcher icon，不再维护 XML adaptive icon 图层：
 
-- `app/src/main/res/drawable/ic_launcher_foreground.xml` - 前景图层，使用原始黑色 film mark 和绿色 X 比例。
-- `app/src/main/res/values/colors.xml` - 背景色图层。
-- `app/src/main/res/drawable/ic_launcher_monochrome.xml` - 单色图层，供支持主题图标的系统使用。
-- `app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` - adaptive icon 入口。
-
-设计依据参考 Android 官方 Adaptive Icon 文档：https://developer.android.com/develop/ui/compose/system/icon_design_adaptive?hl=en
+- `app/src/main/res/mipmap-mdpi/ic_launcher.png`
+- `app/src/main/res/mipmap-hdpi/ic_launcher.png`
+- `app/src/main/res/mipmap-xhdpi/ic_launcher.png`
+- `app/src/main/res/mipmap-xxhdpi/ic_launcher.png`
+- `app/src/main/res/mipmap-xxxhdpi/ic_launcher.png`
 
 ### Android 构建
 
@@ -125,7 +124,7 @@ X Media DL Compose is a personal-use and learning-oriented experiment for downlo
 - Show video cover downloads next to their video button.
 - Show standalone photo downloads separately.
 - Save Android downloads into the system media library so they appear in the gallery.
-- Provide Android Adaptive Icon layers: foreground, background, and monochrome, while preserving the original film mark proportions.
+- Provide density-specific PNG launcher icons from `mdpi` through `xxxhdpi`.
 - Store download history locally with SQLite and ask for confirmation before re-downloading an already recorded media item.
 - Group history by post, show each title with two-line ellipsis, and open the local X / Twitter app when a history item is tapped.
 - Handle Android back gestures from the result page back to the input page.
@@ -146,16 +145,15 @@ The screenshots below were captured from a connected Android device using these 
 | --- | --- |
 | ![Photo post result screen](docs/screenshots/result-image.png) | ![Video post result screen](docs/screenshots/result-video.png) |
 
-### Adaptive Icon
+### App Icon
 
-The Android app uses Adaptive Icon layers instead of a single pre-composed bitmap. The current foreground preserves the original film mark proportions so Samsung's default launcher theme does not stretch the bare foreground artwork:
+The Android app now uses PNG launcher icons stored under the `mipmap-*` directories instead of XML adaptive icon layers:
 
-- `app/src/main/res/drawable/ic_launcher_foreground.xml` - foreground layer using the original dark film mark and lime X proportions.
-- `app/src/main/res/values/colors.xml` - background color layer.
-- `app/src/main/res/drawable/ic_launcher_monochrome.xml` - monochrome layer for themed icon support.
-- `app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml` - adaptive icon entry.
-
-Reference: Android's official Adaptive Icon documentation: https://developer.android.com/develop/ui/compose/system/icon_design_adaptive?hl=en
+- `app/src/main/res/mipmap-mdpi/ic_launcher.png`
+- `app/src/main/res/mipmap-hdpi/ic_launcher.png`
+- `app/src/main/res/mipmap-xhdpi/ic_launcher.png`
+- `app/src/main/res/mipmap-xxhdpi/ic_launcher.png`
+- `app/src/main/res/mipmap-xxxhdpi/ic_launcher.png`
 
 ### Android Build
 
