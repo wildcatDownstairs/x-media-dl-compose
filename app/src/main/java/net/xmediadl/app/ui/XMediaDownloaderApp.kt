@@ -28,15 +28,24 @@ import net.xmediadl.app.utils.openPostUrl
 import net.xmediadl.app.viewmodel.AppScreen
 import net.xmediadl.app.viewmodel.XMediaViewModel
 
+/**
+ * App 的 Compose 根节点，也是 ViewModel 状态到页面的唯一绑定点。
+ *
+ * 页面 Composable 保持无业务状态：它们只接收 [state][net.xmediadl.app.viewmodel.AppUiState]
+ * 和回调。返回键、短时通知、重复下载确认等跨页面行为集中在这里，避免各页面各自维护
+ * 一份可能不一致的导航或弹窗状态。
+ */
 @Composable
 fun XMediaDownloaderApp(viewModel: XMediaViewModel) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
 
+    // 首页交还给系统默认返回行为；结果页和历史页则退回 App 首页。
     BackHandler(enabled = state.screen != AppScreen.Home) {
         viewModel.handleBack()
     }
 
+    // notice 是一次性轻提示。以文本为 key 重启计时，新的下载结果不会被旧计时器清掉。
     LaunchedEffect(state.notice) {
         if (state.notice != null) {
             delay(2_600)
@@ -62,6 +71,7 @@ fun XMediaDownloaderApp(viewModel: XMediaViewModel) {
                     TopBar()
                     Spacer(Modifier.height(32.dp))
 
+                    // App 只有一个 Activity，通过状态枚举切换页面，不引入额外导航栈。
                     when (state.screen) {
                         AppScreen.History -> HistoryScreen(
                             history = state.history,

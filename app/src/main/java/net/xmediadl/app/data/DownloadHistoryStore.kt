@@ -8,9 +8,19 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.xmediadl.app.model.DownloadHistoryPost
 
+/**
+ * 下载历史的 SQLite 单一入口。
+ *
+ * 表中每个成功保存的媒体占一行，`post_url` 用于历史页聚合，`resource_key` 用于跨进程
+ * 稳定判重。所有公开操作都切到 IO 调度器，UI/ViewModel 不直接拼 SQL。数据库升级只做
+ * 增量迁移，绝不采用删表重建，确保安装新版 APK 时保留用户已有历史。
+ *
+ * Schema 版本：1 为基础记录，2 增加远端预览，3 增加本地预览，4 增加稳定资源键。
+ */
 class DownloadHistoryStore(context: Context) :
     SQLiteOpenHelper(context, "download_history.db", null, 4) {
 
+    /** 新安装一次性创建当前最新版表结构和历史页常用索引。 */
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
             """
@@ -32,6 +42,7 @@ class DownloadHistoryStore(context: Context) :
         db.execSQL("CREATE INDEX idx_downloads_downloaded_at ON downloads(downloaded_at)")
     }
 
+    /** 按版本顺序执行可叠加迁移，因此 v1 用户也可直接升级到最新版本。 */
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
         if (oldVersion < 2) {
             // 旧版本已经在用户手机里存过下载历史，不能为了加一个字段直接删表。
@@ -64,6 +75,12 @@ class DownloadHistoryStore(context: Context) :
         }
     }
 
+    /**
+     * 判断媒体是否已成功保存过。
+     *
+     * 优先比较稳定资源键；保留 `media_url` 比较是为了兼容极端异常状态下尚未回填资源键
+     * 的记录。
+     */
     suspend fun hasMedia(
         postUrl: String,
         mediaUrl: String,
@@ -79,6 +96,12 @@ class DownloadHistoryStore(context: Context) :
         }
     }
 
+    /**
+     * 在文件已经写入相册后新增或刷新历史行。
+     *
+     * `CONFLICT_REPLACE` 同时受旧 `media_url` 约束和新 `resource_key` 索引保护，所以用户
+     * 确认重复下载只会刷新记录，不会让同一资源的历史计数无限增长。
+     */
     suspend fun recordDownload(
         postUrl: String,
         postTitle: String,
@@ -111,6 +134,10 @@ class DownloadHistoryStore(context: Context) :
         Unit
     }
 
+    /**
+     * 把媒体级行聚合成历史页的帖子级卡片，并选取每帖最早可用的预览元数据。
+     * 子查询过滤空字符串，以兼容旧版本把缺失值写成空文本的记录。
+     */
     suspend fun listPosts(): List<DownloadHistoryPost> = withContext(Dispatchers.IO) {
         readableDatabase.rawQuery(
             """
@@ -192,6 +219,7 @@ class DownloadHistoryStore(context: Context) :
         }
     }
 
+    /** 旧记录补建缩略图后，把同一帖所有媒体行指向同一个本地预览文件。 */
     suspend fun updatePreviewPath(postUrl: String, previewPath: String) = withContext(Dispatchers.IO) {
         val values = ContentValues().apply {
             put("preview_path", previewPath)
@@ -205,6 +233,7 @@ class DownloadHistoryStore(context: Context) :
         Unit
     }
 
+    /** 删除指定帖子的全部历史行，但不删除系统相册中的媒体文件。 */
     suspend fun deletePost(postUrl: String) = withContext(Dispatchers.IO) {
         // 这里删除的是 App 自己的下载历史，不会触碰相册里的图片或视频文件。
         // 一个帖子可能有多张图或多个视频，所以按 post_url 删除该帖的全部历史项。
@@ -216,6 +245,12 @@ class DownloadHistoryStore(context: Context) :
         Unit
     }
 
+    /**
+     * 为 v1-v3 历史逐行计算稳定键。
+     *
+     * 先把游标内容读入内存、关闭游标后再更新同一张表，避免边遍历边修改导致 CursorWindow
+     * 行为依赖 SQLite 实现细节。历史规模很小，这种方式更安全也更易审计。
+     */
     private fun backfillResourceKeys(db: SQLiteDatabase) {
         val migratedKeys = mutableListOf<Pair<Long, String>>()
         db.query(

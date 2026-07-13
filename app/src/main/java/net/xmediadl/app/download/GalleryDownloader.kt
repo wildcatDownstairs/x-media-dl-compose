@@ -18,7 +18,15 @@ import java.io.OutputStream
 import java.net.HttpURLConnection
 import java.net.URL
 
+/**
+ * 把单个 [MediaItem] 下载到 Android 系统媒体库。
+ *
+ * Android 10+ 使用 MediaStore 的 pending 写入协议，文件完整写入前不会被相册看见；
+ * Android 9 及以下回退到公共目录并主动触发媒体扫描。类本身不记录下载历史，只有文件
+ * 保存成功后 ViewModel 才会调用历史数据层，避免失败任务留下“已下载”的假记录。
+ */
 class GalleryDownloader(private val context: Context) {
+    /** 根据媒体类型生成文件名和目标目录，成功时返回相册中实际保存的文件名。 */
     suspend fun download(item: MediaItem, title: String): String {
         val fileName = buildFileName(title, item.quality, item.fileExtension(), item.fileSuffix)
         return saveToGallery(item.url, fileName, item.mimeType(), item.galleryDirectory())
@@ -58,6 +66,7 @@ class GalleryDownloader(private val context: Context) {
             mimeType.startsWith("image/") -> MediaStore.Images.Media.EXTERNAL_CONTENT_URI
             else -> MediaStore.Downloads.EXTERNAL_CONTENT_URI
         }
+        // insert 只创建占位记录；IS_PENDING=0 之前其它 App 不会读取到半个文件。
         val uri = resolver.insert(collectionUri, values)
             ?: throw IllegalStateException("无法创建媒体文件。")
 
@@ -71,6 +80,7 @@ class GalleryDownloader(private val context: Context) {
             resolver.update(uri, values, null, null)
             return fileName
         } catch (throwable: Throwable) {
+            // 下载中断时删除 pending 记录，避免相册数据库残留永远不可见的脏条目。
             resolver.delete(uri, null, null)
             throw throwable
         }
@@ -97,6 +107,7 @@ class GalleryDownloader(private val context: Context) {
     }
 
     private fun downloadUrlTo(url: String, output: OutputStream) {
+        // 下载地址通常由 SaveTwitter 包装，Referer 与桌面 UA 是上游校验请求来源所需。
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
             connectTimeout = 15_000
             readTimeout = 60_000
@@ -118,6 +129,12 @@ class GalleryDownloader(private val context: Context) {
     }
 }
 
+/**
+ * 生成兼容 MediaStore 与传统文件系统的可读文件名。
+ *
+ * 标题被清理并限制长度；[fileSuffix] 区分同帖中的多媒体槽位，[quality] 则帮助用户从
+ * 相册文件名直接识别视频清晰度。
+ */
 fun buildFileName(title: String, quality: Int, extension: String, fileSuffix: String = ""): String {
     // 文件名会同时经过 Android 媒体库和桌面文件系统。
     // 去掉特殊字符、压短标题，可以减少保存失败和列表显示过长的问题。
@@ -132,6 +149,7 @@ fun buildFileName(title: String, quality: Int, extension: String, fileSuffix: St
     return "$base$fileSuffix$suffix.$extension"
 }
 
+/** Android 9 及以下写公共目录时，为重名文件追加递增编号，绝不覆盖用户已有媒体。 */
 private fun uniqueFile(directory: File, fileName: String): File {
     val dotIndex = fileName.lastIndexOf('.')
     val name = if (dotIndex > 0) fileName.substring(0, dotIndex) else fileName

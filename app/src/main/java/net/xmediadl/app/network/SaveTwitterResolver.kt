@@ -19,7 +19,15 @@ import java.net.URLEncoder
 import java.nio.charset.StandardCharsets
 import kotlin.math.max
 
+/**
+ * SaveTwitter HTML 接口适配器。
+ *
+ * 上游返回 JSON 包裹的 HTML 片段，而不是稳定的结构化媒体 API。本类把易变的网络格式
+ * 隔离在 network 层，最终只输出 [ResolvedPost]。解析策略会把同一视频的多个清晰度
+ * 合并为最高质量项，并把紧随视频的 Photo 识别为该视频封面。
+ */
 class SaveTwitterResolver {
+    /** 在 IO 线程提交帖子 URL，并记录从请求开始到完成解析的总耗时。 */
     suspend fun resolve(postUrl: String): ResolvedPost = withContext(Dispatchers.IO) {
         val startedAt = System.currentTimeMillis()
 
@@ -49,6 +57,7 @@ class SaveTwitterResolver {
         parseResolvedPost(html, System.currentTimeMillis() - startedAt)
     }
 
+    /** 将上游 HTML 片段转换成与 UI、数据库无关的领域模型。 */
     private fun parseResolvedPost(html: String, elapsedMs: Long): ResolvedPost {
         val thumbnail = Regex("""<img\s+src="([^"]+)""", RegexOption.IGNORE_CASE)
             .find(html)
@@ -87,6 +96,8 @@ class SaveTwitterResolver {
             }
         }
 
+        // 上游按“同一视频的多档 MP4 → 封面 Photo”排列链接。遇到新一组或 Photo 时，
+        // 把当前视频组压缩为最高 quality 的一个按钮。
         Regex("""<a[^>]+href="([^"]+)"[^>]*>(.*?)</a>""", setOf(RegexOption.IGNORE_CASE, RegexOption.DOT_MATCHES_ALL))
             .findAll(html)
             .forEach { match ->
@@ -146,6 +157,12 @@ class SaveTwitterResolver {
         )
     }
 
+    /**
+     * 给多视频/多图片帖子分配稳定序号和文件后缀。
+     *
+     * 后缀不仅影响文件名，也是临时下载 URL 无法解析时的持久判重回退信息，因此顺序必须
+     * 完全由解析结果决定，不能依赖界面状态。
+     */
     private fun labelMediaEntries(mediaEntries: List<MediaEntry>): List<MediaEntry> {
         val videoCount = mediaEntries.count { it is VideoEntry }
         val photoCount = mediaEntries.count { it is PhotoEntry }

@@ -8,6 +8,13 @@ import net.xmediadl.app.ui.XMediaDownloaderApp
 import net.xmediadl.app.utils.extractUrlFromIntent
 import net.xmediadl.app.viewmodel.XMediaViewModel
 
+/**
+ * Android 进程进入 App 后的唯一 Activity。
+ *
+ * 这里刻意只做三件事：解析系统 Intent、创建具有 Activity 生命周期的 ViewModel、挂载
+ * Compose 根节点。网络解析、下载和数据库访问都留在 ViewModel/数据层，避免 Activity 因
+ * 旋转或系统重建而把正在执行的业务任务一起销毁。
+ */
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)

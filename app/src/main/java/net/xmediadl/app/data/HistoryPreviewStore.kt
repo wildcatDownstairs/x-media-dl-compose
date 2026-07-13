@@ -15,10 +15,21 @@ import java.io.File
 import java.io.FileOutputStream
 import java.security.MessageDigest
 
+/**
+ * 下载历史缩略图的本地文件仓库。
+ *
+ * 每个帖子以 URL 的 SHA-256 作为文件名，避免特殊字符和不同标题造成路径问题。新记录
+ * 优先缓存解析接口给出的封面；旧记录的远端地址失效后，可根据历史文件名从 MediaStore
+ * 找回相册文件并重建缩略图。所有磁盘和媒体库访问都切到 IO 调度器。
+ *
+ * 注意：构造函数会创建 [previewDirectory]，因此 Compose `@Preview` 不能实例化本类；
+ * Layoutlib 不提供完整的应用文件目录。UI 层会在 inspection mode 下跳过创建。
+ */
 class HistoryPreviewStore(context: Context) {
     private val appContext = context.applicationContext
     private val previewDirectory = File(context.filesDir, "history-previews").apply { mkdirs() }
 
+    /** 返回已有缩略图，或从远端/相册生成后返回其绝对路径；全部失败时返回 null。 */
     suspend fun ensurePreview(
         postUrl: String,
         previewUrl: String?,
@@ -40,6 +51,7 @@ class HistoryPreviewStore(context: Context) {
         bitmap?.takeIf { it.writeJpeg(previewFile) }?.let { previewFile.absolutePath }
     }
 
+    /** 安全读取本地缩略图，路径为空、文件丢失或解码失败都按无预览处理。 */
     suspend fun loadBitmap(previewPath: String?): Bitmap? = withContext(Dispatchers.IO) {
         if (previewPath.isNullOrBlank()) {
             return@withContext null
@@ -51,6 +63,7 @@ class HistoryPreviewStore(context: Context) {
         }.getOrNull()
     }
 
+    /** 删除 App 私有目录中的缩略图；不会触碰系统相册里的原始图片或视频。 */
     suspend fun deletePreview(previewPath: String?) = withContext(Dispatchers.IO) {
         if (previewPath.isNullOrBlank()) {
             return@withContext
@@ -65,6 +78,7 @@ class HistoryPreviewStore(context: Context) {
         Unit
     }
 
+    /** 根据历史行保存的文件名，在 MediaStore 中寻找原媒体并生成适合历史卡片的位图。 */
     private fun loadGalleryBitmap(fileName: String?, mediaType: String?): Bitmap? {
         if (fileName.isNullOrBlank() || mediaType.isNullOrBlank()) {
             return null
@@ -80,6 +94,10 @@ class HistoryPreviewStore(context: Context) {
         }
     }
 
+    /**
+     * 只查询 XMediaDL 子目录中的同名文件，优先最近写入项。
+     * Android 9 没有 RELATIVE_PATH，因此旧系统只能退化为按显示名查找。
+     */
     private fun findGalleryUri(fileName: String, mediaType: String): Uri? {
         val isVideo = mediaType.equals("Video", ignoreCase = true)
         val collection = if (isVideo) {
@@ -115,6 +133,7 @@ class HistoryPreviewStore(context: Context) {
         return null
     }
 
+    /** Android 9 及以下没有 loadThumbnail，图片直接解码，视频通过旧 ThumbnailUtils 生成。 */
     @Suppress("DEPRECATION")
     private fun loadLegacyGalleryBitmap(contentUri: Uri, mediaType: String): Bitmap? {
         if (mediaType.equals("Photo", ignoreCase = true)) {
@@ -142,6 +161,7 @@ class HistoryPreviewStore(context: Context) {
     }
 }
 
+/** 以固定质量写入 App 私有缓存；异常转换为 false，避免缩略图失败影响下载成功状态。 */
 private fun Bitmap.writeJpeg(targetFile: File): Boolean {
     return runCatching {
         FileOutputStream(targetFile).use { output ->
@@ -150,6 +170,7 @@ private fun Bitmap.writeJpeg(targetFile: File): Boolean {
     }.getOrDefault(false)
 }
 
+/** 为帖子 URL 生成固定长度、文件系统安全的缓存键。 */
 private fun String.sha256(): String {
     val digest = MessageDigest.getInstance("SHA-256").digest(toByteArray())
     return digest.joinToString(separator = "") { byte -> "%02x".format(byte) }

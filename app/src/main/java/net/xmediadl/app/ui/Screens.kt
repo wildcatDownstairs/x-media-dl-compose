@@ -78,6 +78,15 @@ import java.text.DateFormat
 import java.util.Date
 import kotlin.math.roundToInt
 
+/*
+ * 本文件只包含无业务状态的页面与可复用视觉组件。
+ *
+ * 运行时数据全部由参数传入，用户动作通过回调上抛给 ViewModel。文件底部的 @Preview 使用
+ * 纯内存样例数据，且必须避开文件系统、MediaStore、网络等 Layoutlib 不支持的 Android
+ * 运行时能力；这条边界能让预览在没有设备、权限和真实数据库时仍稳定渲染。
+ */
+
+/** 全局品牌栏；不读取页面状态，可在所有页面和 Preview 中复用。 */
 @Composable
 fun TopBar() {
     Row(
@@ -124,6 +133,7 @@ fun TopBar() {
     }
 }
 
+/** 顶部短时状态条，用于显示下载开始、成功或失败，不承担交互。 */
 @Composable
 fun TopNotice(message: String, modifier: Modifier = Modifier) {
     Box(
@@ -146,6 +156,12 @@ fun TopNotice(message: String, modifier: Modifier = Modifier) {
     }
 }
 
+/**
+ * 首页输入表单。
+ *
+ * 输入值完全受控于 ViewModel；粘贴、解析和进入历史页均通过回调上抛，因此该组件可以用
+ * 静态参数独立预览和测试。
+ */
 @Composable
 fun HomeScreen(
     input: String,
@@ -256,6 +272,7 @@ fun HomeScreen(
     }
 }
 
+/** 用 Canvas 绘制剪贴板图标，避免额外引入图标依赖或位图资源。 */
 @Composable
 fun ClipboardIcon(modifier: Modifier = Modifier, color: Color) {
     Canvas(modifier = modifier) {
@@ -290,6 +307,7 @@ fun ClipboardIcon(modifier: Modifier = Modifier, color: Color) {
     }
 }
 
+/** 根据 loading/error/resolved 三种互斥状态组合结果页内容。 */
 @Composable
 fun ResultScreen(
     loading: Boolean,
@@ -333,6 +351,7 @@ fun ResultScreen(
     }
 }
 
+/** 解析请求进行中的占位卡片。 */
 @Composable
 fun LoadingPanel() {
     Row(
@@ -353,6 +372,7 @@ fun LoadingPanel() {
     }
 }
 
+/** 网络或解析错误卡片；错误文本由 ViewModel 统一生成。 */
 @Composable
 fun ErrorPanel(message: String) {
     Box(
@@ -367,6 +387,7 @@ fun ErrorPanel(message: String) {
     }
 }
 
+/** 帖子级历史列表；空列表和有数据列表共享同一页头。 */
 @Composable
 fun HistoryScreen(
     history: List<DownloadHistoryPost>,
@@ -402,6 +423,13 @@ fun HistoryScreen(
     }
 }
 
+/**
+ * 单条历史卡片，支持点击打开帖子以及左滑删除。
+ *
+ * [previewBitmapOverride] 专供 Preview/视觉测试注入内存位图。Android Studio Preview 运行在
+ * Layoutlib 中，没有可用的 App filesDir/MediaStore，因此 inspection mode 下绝不能构造
+ * [HistoryPreviewStore]，否则即使传入 override 也会在执行 LaunchedEffect 之前崩溃。
+ */
 @Composable
 fun HistoryItem(
     item: DownloadHistoryPost,
@@ -409,9 +437,11 @@ fun HistoryItem(
     onDeletePost: (String) -> Unit,
     previewBitmapOverride: Bitmap? = null,
 ) {
-    val context = LocalContext.current
-    val previewStore = remember { HistoryPreviewStore(context.applicationContext) }
     val isPreviewMode = LocalInspectionMode.current
+    val context = LocalContext.current
+    val previewStore = remember(context, isPreviewMode) {
+        if (isPreviewMode) null else HistoryPreviewStore(context.applicationContext)
+    }
     var previewBitmap by remember(item.previewPath, item.previewUrl, previewBitmapOverride) {
         mutableStateOf(previewBitmapOverride)
     }
@@ -430,7 +460,7 @@ fun HistoryItem(
 
         // 历史页优先走本地缩略图。
         // 只有旧数据还没完成迁移时，才退回远端地址临时拉一次。
-        previewBitmap = previewStore.loadBitmap(item.previewPath)
+        previewBitmap = previewStore?.loadBitmap(item.previewPath)
             ?: item.previewUrl?.let { RemoteImageLoader.loadBitmap(it) }
     }
 
@@ -465,6 +495,7 @@ fun HistoryItem(
                 .clip(RoundedCornerShape(12.dp))
                 .background(AppColors.Surface)
                 .border(1.dp, AppColors.Border, RoundedCornerShape(12.dp))
+                // 拖动只改变卡片前景偏移；红色 DELETE 底层始终固定，形成“滑出”效果。
                 .pointerInput(item.postUrl) {
                     detectHorizontalDragGestures(
                         onHorizontalDrag = { change, dragAmount ->
@@ -574,6 +605,7 @@ fun HistoryItem(
     }
 }
 
+/** 解析后的帖子卡片；按领域模型类型选择视频行或独立图片按钮。 */
 @Composable
 fun ResultCard(resolved: ResolvedPost, onDownload: (MediaItem) -> Unit) {
     Column(
@@ -607,6 +639,7 @@ fun ResultCard(resolved: ResolvedPost, onDownload: (MediaItem) -> Unit) {
     }
 }
 
+/** 视频下载行；存在封面时并排显示视频与封面按钮。 */
 @Composable
 fun VideoDownloadRow(entry: VideoEntry, onDownload: (MediaItem) -> Unit) {
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -631,6 +664,7 @@ fun VideoDownloadRow(entry: VideoEntry, onDownload: (MediaItem) -> Unit) {
     }
 }
 
+/** 所有媒体共用的下载按钮，确保尺寸、字体和回调行为一致。 */
 @Composable
 fun DownloadButton(
     item: MediaItem,
@@ -657,11 +691,16 @@ fun DownloadButton(
     }
 }
 
+/** 运行时远端预览入口；加载失败时由内部实现展示 X 占位。 */
 @Composable
 fun RemotePreview(url: String?) {
     RemotePreview(url = url, bitmapOverride = null)
 }
 
+/**
+ * 可注入位图的预览实现。
+ * inspection mode 下不发网络请求，避免 Preview 因网络权限、超时或上游不可用而损坏。
+ */
 @Composable
 private fun RemotePreview(url: String?, bitmapOverride: Bitmap?) {
     val isPreviewMode = LocalInspectionMode.current
@@ -698,6 +737,7 @@ private fun RemotePreview(url: String?, bitmapOverride: Bitmap?) {
     }
 }
 
+/** 每页底部的静态用途声明。 */
 @Composable
 fun Footer() {
     Box(modifier = Modifier.fillMaxWidth().padding(top = 32.dp, bottom = 12.dp), contentAlignment = Alignment.Center) {
@@ -705,6 +745,10 @@ fun Footer() {
     }
 }
 
+/**
+ * Android Studio Preview 专用页面框架。
+ * 它复刻真实根页面的主题、边距、顶栏和页脚，但不依赖 ViewModel 或 Android 生命周期。
+ */
 @Composable
 private fun PreviewFrame(
     modifier: Modifier = Modifier,
@@ -745,6 +789,7 @@ private fun PreviewFrame(
     }
 }
 
+/** 为 Preview 创建纯内存色块，避免读取 drawable、磁盘或网络。 */
 private fun samplePreviewBitmap(color: Int): Bitmap {
     return Bitmap.createBitmap(720, 720, Config.ARGB_8888).apply {
         eraseColor(color)
@@ -757,6 +802,7 @@ private val previewRemoteBitmap: Bitmap
 private val previewHistoryBitmap: Bitmap
     get() = samplePreviewBitmap(0xFF735C3F.toInt())
 
+/** 结果页 Preview 的确定性样例，覆盖视频、封面和独立图片三种按钮。 */
 private fun previewResolvedPost(): ResolvedPost {
     return ResolvedPost(
         title = "The new #TwitterAPI includes some interesting changes worth watching.",
@@ -790,6 +836,7 @@ private fun previewResolvedPost(): ResolvedPost {
     )
 }
 
+/** 历史页 Preview 样例；路径刻意为空，确保视觉预览不误读开发机文件。 */
 private fun previewHistoryItems(): List<DownloadHistoryPost> {
     val now = System.currentTimeMillis()
     return listOf(

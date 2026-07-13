@@ -28,12 +28,20 @@ import net.xmediadl.app.utils.normalizeSharedText
 import net.xmediadl.app.utils.readClipboardText
 import net.xmediadl.app.utils.readClipboardXUrl
 
+/** 单 Activity 内的三个互斥页面；导航由 [AppUiState.screen] 驱动。 */
 enum class AppScreen {
     Home,
     Result,
     History,
 }
 
+/**
+ * 界面所需状态的完整快照。
+ *
+ * [resolved] 与 [history] 分别服务结果页和历史页；[notice] 是自动消失的轻提示；
+ * [pendingDownload] 非空时根节点显示重复下载确认框。把这些值放在同一个 StateFlow 中，
+ * 可保证 Compose 每次重组看到内部一致的状态组合。
+ */
 data class AppUiState(
     val input: String = "",
     val screen: AppScreen = AppScreen.Home,
@@ -45,6 +53,12 @@ data class AppUiState(
     val pendingDownload: PendingDownload? = null,
 )
 
+/**
+ * 连接 UI、解析器、相册下载器和本地历史库的页面级状态持有者。
+ *
+ * 所有公开方法都是用户事件入口；耗时工作统一启动在 [scope] 中，结果再以原子 copy/update
+ * 写回 [uiState]。数据层对象只在这里持有，Composable 不直接访问数据库或下载器。
+ */
 class XMediaViewModel(
     context: Context,
     initialUrl: String?,
@@ -63,15 +77,18 @@ class XMediaViewModel(
     val uiState: StateFlow<AppUiState> = _uiState.asStateFlow()
 
     init {
+        // 从系统分享/深链接启动时跳过首页输入步骤，直接解析传入帖子。
         if (!initialUrl.isNullOrBlank()) {
             resolve(initialUrl)
         }
     }
 
+    /** 同步输入框，并清除上一次格式错误，避免用户修改后仍看到过期提示。 */
     fun updateInput(value: String) {
         _uiState.update { it.copy(input = value, error = null) }
     }
 
+    /** 粘贴任意文本；实际 URL 提取和格式校验由 [resolve] 统一处理。 */
     fun pasteFromClipboard() {
         val pasted = readClipboardText(appContext)
         if (pasted.isBlank()) {
@@ -81,6 +98,7 @@ class XMediaViewModel(
         }
     }
 
+    /** 点击 DOWNLOAD 时优先用输入框；输入为空则尝试当前剪贴板中的 X 链接。 */
     fun resolveCurrentInput() {
         val currentInput = uiState.value.input
         val clipboardUrl = readClipboardXUrl(appContext)
@@ -94,6 +112,12 @@ class XMediaViewModel(
         }
     }
 
+    /**
+     * 规范化并解析帖子。
+     *
+     * 发起请求前先清空旧结果，避免新旧帖内容同时出现；异步结果只修改 loading/resolved/
+     * error，不替换用户已经规范化后的输入值。
+     */
     fun resolve(rawUrl: String) {
         val cleanUrl = normalizeSharedText(rawUrl)
         if (!looksLikeXUrl(cleanUrl)) {
@@ -140,11 +164,13 @@ class XMediaViewModel(
         }
     }
 
+    /** 立即切换到历史页，再异步读取数据库，页面可先展示稳定的框架。 */
     fun openHistory() {
         _uiState.update { it.copy(screen = AppScreen.History, error = null, loading = false) }
         refreshHistory()
     }
 
+    /** 删除帖子级历史及其私有缩略图，不删除系统相册中的原始媒体。 */
     fun deleteHistoryPost(postUrl: String) {
         val previewPath = uiState.value.history.firstOrNull { it.postUrl == postUrl }?.previewPath
         scope.launch {
@@ -154,6 +180,12 @@ class XMediaViewModel(
         }
     }
 
+    /**
+     * 用户点击媒体按钮后的判重入口。
+     *
+     * 必须先查持久数据库，不能依赖进程内集合；命中后只设置 [PendingDownload] 让 UI 弹窗，
+     * 未命中才直接进入下载。
+     */
     fun requestDownload(item: MediaItem) {
         val post = uiState.value.resolved ?: return
         scope.launch {
@@ -187,6 +219,7 @@ class XMediaViewModel(
         }
     }
 
+    /** 用户确认重复下载：先关闭弹窗，再复用同一下载流程刷新历史记录。 */
     fun confirmDuplicateDownload() {
         val pending = uiState.value.pendingDownload ?: return
         _uiState.update { it.copy(pendingDownload = null) }
@@ -199,10 +232,12 @@ class XMediaViewModel(
         )
     }
 
+    /** 取消重复下载时仅清空暂存上下文，不修改相册或历史。 */
     fun dismissDuplicateDialog() {
         _uiState.update { it.copy(pendingDownload = null) }
     }
 
+    /** 结果页继续下载：剪贴板出现新帖子就原地解析，否则回首页。 */
     fun handleDownloadMore() {
         val clipboardUrl = readClipboardXUrl(appContext)
         val currentUrl = uiState.value.input
@@ -213,6 +248,7 @@ class XMediaViewModel(
         }
     }
 
+    /** 单层状态导航的返回行为：非首页页面统一回首页。 */
     fun handleBack() {
         if (uiState.value.screen == AppScreen.Home) {
             return
@@ -220,10 +256,12 @@ class XMediaViewModel(
         returnHome()
     }
 
+    /** 根 Composable 的定时器调用，用于消费一次性顶部提示。 */
     fun clearNotice() {
         _uiState.update { it.copy(notice = null) }
     }
 
+    /** 清空帖子相关临时状态，但保留已加载历史，下一次打开可先显示旧快照。 */
     private fun returnHome() {
         _uiState.update {
             it.copy(
@@ -237,6 +275,12 @@ class XMediaViewModel(
         }
     }
 
+    /**
+     * 刷新帖子聚合历史，并为旧记录惰性修复本地缩略图。
+     *
+     * 第一阶段先发布数据库结果，第二阶段再逐项做可能较慢的相册/网络预览修复；因此即使
+     * 某张封面失败，文字历史仍能及时显示。
+     */
     private fun refreshHistory() {
         scope.launch {
             val history = historyStore.listPosts()
@@ -270,6 +314,11 @@ class XMediaViewModel(
         }
     }
 
+    /**
+     * 执行“写相册 → 缓存预览 → 写历史”的有序事务流程。
+     *
+     * 只有相册保存成功后才记录数据库，保证“已下载”始终代表真实文件曾成功写入。
+     */
     private fun performDownload(
         item: MediaItem,
         postUrl: String,
@@ -305,12 +354,14 @@ class XMediaViewModel(
         }
     }
 
+    /** Activity 真正结束时取消未完成任务并关闭 SQLite 连接。 */
     override fun onCleared() {
         scope.cancel()
         historyStore.close()
         super.onCleared()
     }
 
+    /** 向无参 ViewModelProvider 注入 Application Context 与可选初始分享链接。 */
     class Factory(
         private val context: Context,
         private val initialUrl: String?,
