@@ -77,7 +77,7 @@ if ($LASTEXITCODE -ne 0) { Fail "Gradle build failed (exit $LASTEXITCODE)." }
 
 if (-not (Test-Path $ApkPath)) { Fail "APK not found after build: $ApkPath" }
 
-Write-Log 'Installing APK...'
+Write-Log 'Installing APK as an in-place update (preserving app data)...'
 & $AdbBin -s $DeviceSerial install -r $ApkPath
 if ($LASTEXITCODE -ne 0) { Fail "adb install failed (exit $LASTEXITCODE)." }
 

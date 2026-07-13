@@ -151,7 +151,7 @@ fi
 
 [[ -f "${APK_PATH}" ]] || fail "APK not found after build: ${APK_PATH}"
 
-log "Installing APK..."
+log "Installing APK as an in-place update (preserving app data)..."
 APK_PATH_FOR_ADB="${APK_PATH}"
 if is_wsl; then
   # adb.exe is a Windows program even when launched from WSL, so it needs a Windows path.

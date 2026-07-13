@@ -92,6 +92,11 @@ Windows：
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
+其中 `-r` 表示原位升级，会保留应用私有目录中的 SQLite 历史数据库。仓库内的
+`Scripts/build-and-install.ps1` / `.sh` 也固定使用该参数。后续安装请保持
+`applicationId`（`net.xmediadl.app`）和签名证书不变，并递增 `versionCode`；不要先执行
+`adb uninstall` 或在系统设置中“清除数据”，否则 Android 会删除历史记录。
+
 ### 网页版
 
 GitHub Pages 发布目录是 `docs/`。它是一个静态网页，适合公开访问和搜索引擎索引。
@@ -187,6 +192,11 @@ Install:
 ```bash
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
+
+The `-r` flag performs an in-place update and preserves the SQLite history database in the app's
+private data directory. The bundled `Scripts/build-and-install.ps1` / `.sh` scripts also always use
+this flag. Keep the `applicationId` (`net.xmediadl.app`) and signing certificate unchanged, increment
+`versionCode` for future releases, and do not run `adb uninstall` or clear the app's data.
 
 ### Web Version
 

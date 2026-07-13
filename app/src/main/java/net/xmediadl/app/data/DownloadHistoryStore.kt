@@ -9,7 +9,7 @@ import kotlinx.coroutines.withContext
 import net.xmediadl.app.model.DownloadHistoryPost
 
 class DownloadHistoryStore(context: Context) :
-    SQLiteOpenHelper(context, "download_history.db", null, 3) {
+    SQLiteOpenHelper(context, "download_history.db", null, 4) {
 
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL(
@@ -23,7 +23,8 @@ class DownloadHistoryStore(context: Context) :
                 file_name TEXT NOT NULL,
                 downloaded_at INTEGER NOT NULL,
                 preview_url TEXT,
-                preview_path TEXT
+                preview_path TEXT,
+                resource_key TEXT NOT NULL UNIQUE
             )
             """.trimIndent(),
         )
@@ -42,12 +43,37 @@ class DownloadHistoryStore(context: Context) :
             // 这里补一个本地预览文件路径字段，后续历史列表优先读本地文件。
             db.execSQL("ALTER TABLE downloads ADD COLUMN preview_path TEXT")
         }
+        if (oldVersion < 4) {
+            // SaveTwitter 的下载 URL 带短期 JWT，每次解析都可能变化，不能直接拿它做持久判重键。
+            // 先无损添加可空列并回填旧记录，再合并已经产生的重复项并建立唯一索引。
+            db.execSQL("ALTER TABLE downloads ADD COLUMN resource_key TEXT")
+            backfillResourceKeys(db)
+            db.execSQL(
+                """
+                DELETE FROM downloads
+                WHERE resource_key IS NOT NULL
+                    AND id NOT IN (
+                        SELECT MAX(id)
+                        FROM downloads
+                        WHERE resource_key IS NOT NULL
+                        GROUP BY resource_key
+                    )
+                """.trimIndent(),
+            )
+            db.execSQL("CREATE UNIQUE INDEX idx_downloads_resource_key ON downloads(resource_key)")
+        }
     }
 
-    suspend fun hasMedia(mediaUrl: String): Boolean = withContext(Dispatchers.IO) {
+    suspend fun hasMedia(
+        postUrl: String,
+        mediaUrl: String,
+        mediaType: String,
+        fileSuffix: String,
+    ): Boolean = withContext(Dispatchers.IO) {
+        val resourceKey = mediaResourceKey(postUrl, mediaUrl, mediaType, fileSuffix)
         readableDatabase.rawQuery(
-            "SELECT 1 FROM downloads WHERE media_url = ? LIMIT 1",
-            arrayOf(mediaUrl),
+            "SELECT 1 FROM downloads WHERE resource_key = ? OR media_url = ? LIMIT 1",
+            arrayOf(resourceKey, mediaUrl),
         ).use { cursor ->
             cursor.moveToFirst()
         }
@@ -59,6 +85,7 @@ class DownloadHistoryStore(context: Context) :
         mediaUrl: String,
         mediaType: String,
         fileName: String,
+        fileSuffix: String,
         previewUrl: String?,
         previewPath: String?,
     ) = withContext(Dispatchers.IO) {
@@ -73,6 +100,7 @@ class DownloadHistoryStore(context: Context) :
             put("downloaded_at", System.currentTimeMillis())
             put("preview_url", previewUrl.orEmpty())
             put("preview_path", previewPath.orEmpty())
+            put("resource_key", mediaResourceKey(postUrl, mediaUrl, mediaType, fileSuffix))
         }
         writableDatabase.insertWithOnConflict(
             "downloads",
@@ -186,5 +214,33 @@ class DownloadHistoryStore(context: Context) :
             arrayOf(postUrl),
         )
         Unit
+    }
+
+    private fun backfillResourceKeys(db: SQLiteDatabase) {
+        val migratedKeys = mutableListOf<Pair<Long, String>>()
+        db.query(
+            "downloads",
+            arrayOf("id", "post_url", "media_url", "media_type", "file_name"),
+            null,
+            null,
+            null,
+            null,
+            null,
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                val id = cursor.getLong(0)
+                val resourceKey = legacyMediaResourceKey(
+                    postUrl = cursor.getString(1),
+                    mediaUrl = cursor.getString(2),
+                    mediaType = cursor.getString(3),
+                    fileName = cursor.getString(4),
+                )
+                migratedKeys += id to resourceKey
+            }
+        }
+        migratedKeys.forEach { (id, resourceKey) ->
+            val values = ContentValues().apply { put("resource_key", resourceKey) }
+            db.update("downloads", values, "id = ?", arrayOf(id.toString()))
+        }
     }
 }

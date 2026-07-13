@@ -157,7 +157,14 @@ class XMediaViewModel(
     fun requestDownload(item: MediaItem) {
         val post = uiState.value.resolved ?: return
         scope.launch {
-            if (historyStore.hasMedia(item.url)) {
+            if (
+                historyStore.hasMedia(
+                    postUrl = post.postUrl,
+                    mediaUrl = item.url,
+                    mediaType = item.type.name,
+                    fileSuffix = item.fileSuffix,
+                )
+            ) {
                 _uiState.update {
                     it.copy(
                         pendingDownload = PendingDownload(
@@ -285,6 +292,7 @@ class XMediaViewModel(
                         mediaUrl = item.url,
                         mediaType = item.type.name,
                         fileName = savedName,
+                        fileSuffix = item.fileSuffix,
                         previewUrl = previewUrl,
                         previewPath = cachedPreviewPath,
                     )
